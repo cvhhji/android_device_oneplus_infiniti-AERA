@@ -24,6 +24,10 @@ from the matching OnePlus 15 stock OTA. Do not reuse them on another platform.
 
 ## Build
 
+The GitHub Actions build defaults to Simplified Chinese, Beijing time (UTC+8
+without daylight saving), and a 24-hour clock. It also normalizes saved
+`TAIST-8` timezone settings that still have daylight saving enabled.
+
 ```sh
 cd ~/Desktop/AERA_16.0
 source build/envsetup.sh

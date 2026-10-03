@@ -72,6 +72,11 @@ jobs:
           test -s "$device_tree/tools/transplant_avb.sh"
           grep -Fq 'twrp_infiniti-eng' "$device_tree/AndroidProducts.mk"
 
+      - name: Set Simplified Chinese, Beijing time, and 24-hour defaults
+        run: |
+          python3 "$GITHUB_WORKSPACE/tools/patch_aera_defaults.py" \
+            "$AERA_ROOT/bootable/recovery"
+
       - name: Add temporary swap space for Soong
         run: |
           sudo fallocate -l 12G /swapfile-extra
