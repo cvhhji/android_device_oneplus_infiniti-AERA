@@ -1,0 +1,131 @@
+name: Build AERA Recovery infiniti
+
+on:
+  push:
+    branches:
+      - aera-16.0
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      AERA_ROOT: /home/runner/android/AERA_16.0
+      AERA_OUT: /home/runner/android/AERA_16.0/out
+
+    steps:
+      - name: Check out infiniti device tree
+        uses: actions/checkout@v7
+
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android/sdk /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/share/swift
+          df -h /
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
+            git git-lfs gnupg gperf imagemagick lib32ncurses-dev lib32readline-dev \
+            lib32z1-dev libelf-dev libgl1-mesa-dev libncurses-dev libssl-dev \
+            libxml2 libxml2-utils lz4 lzop openjdk-17-jdk pngcrush python3 \
+            python-is-python3 rsync schedtool squashfs-tools unzip xsltproc zip zlib1g-dev
+
+      - name: Install repo and sync AERA Android 16 sources
+        run: |
+          mkdir -p "$HOME/bin" "$(dirname "$AERA_ROOT")"
+          curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo -o "$HOME/bin/repo"
+          chmod a+x "$HOME/bin/repo"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+          mkdir -p "$AERA_ROOT"
+          cd "$AERA_ROOT"
+          "$HOME/bin/repo" init -u https://github.com/AERA-Recovery/android_manifest.git -b aera-16.0
+
+          # AERA manifest sources are public, so use HTTPS instead of requiring
+          # an SSH private key on the hosted runner.
+          while IFS= read -r -d '' manifest_file; do
+            sed -i 's#ssh://git@github.com/AERA-Recovery#https://github.com/AERA-Recovery#g' "$manifest_file"
+          done < <(find .repo/manifests -type f -name '*.xml' -print0)
+          if grep -Rqs 'ssh://git@github.com/AERA-Recovery' .repo/manifests; then
+            echo "AERA SSH remotes remain in the manifest checkout" >&2
+            exit 1
+          fi
+
+          "$HOME/bin/repo" sync -c --force-sync --no-clone-bundle --no-tags -j"$(nproc)"
+
+      - name: Overlay OnePlus 15 infiniti device tree
+        run: |
+          device_tree="$AERA_ROOT/device/oneplus/infiniti"
+          mkdir -p "$device_tree"
+          rsync -a --exclude='.git/' --exclude='.github/' \
+            "$GITHUB_WORKSPACE/" "$device_tree/"
+          test -f "$device_tree/AndroidProducts.mk"
+          test -s "$device_tree/avb/recovery-vbmeta.bin"
+          test -s "$device_tree/tools/transplant_avb.sh"
+          grep -Fq 'twrp_infiniti-eng' "$device_tree/AndroidProducts.mk"
+
+      - name: Add temporary swap space for Soong
+        run: |
+          sudo fallocate -l 12G /swapfile-extra
+          sudo chmod 600 /swapfile-extra
+          sudo mkswap /swapfile-extra
+          sudo swapon /swapfile-extra
+          free -h
+          swapon --show
+          df -h "$AERA_ROOT"
+
+      - name: Build AERA recovery image
+        run: |
+          cd "$AERA_ROOT"
+          export PATH="$HOME/bin:$PATH"
+          export OUT_DIR="$AERA_OUT"
+          source build/envsetup.sh
+          lunch twrp_infiniti-bp2a-eng
+
+          mka adbd recoveryimage &
+          build_pid=$!
+          while kill -0 "$build_pid" 2>/dev/null; do
+            sleep 60
+            if kill -0 "$build_pid" 2>/dev/null; then
+              echo "AERA recovery build is still active at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+              ps -eo pid,ppid,stat,etime,%cpu,%mem,rss,comm --sort=-%cpu | head -n 12
+              free -h
+              df -h "$AERA_ROOT"
+            fi
+          done
+          wait "$build_pid"
+
+      - name: Remove temporary swap space
+        if: success()
+        run: |
+          sudo swapoff /swapfile-extra
+          sudo rm /swapfile-extra
+
+      - name: Transplant official recovery AVB metadata
+        run: |
+          recovery_image="$AERA_OUT/target/product/infiniti/recovery.img"
+          if [ ! -s "$recovery_image" ]; then
+            echo "AERA recovery.img was not produced at $recovery_image" >&2
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/aera-infiniti-artifact"
+          bash "$GITHUB_WORKSPACE/tools/transplant_avb.sh" \
+            "$GITHUB_WORKSPACE/avb/recovery-vbmeta.bin" \
+            "$recovery_image" \
+            "$RUNNER_TEMP/aera-infiniti-artifact/AERA-infiniti-aera-16.0-recovery.img"
+          stat "$RUNNER_TEMP/aera-infiniti-artifact/AERA-infiniti-aera-16.0-recovery.img"
+          sha256sum "$RUNNER_TEMP/aera-infiniti-artifact/AERA-infiniti-aera-16.0-recovery.img" \
+            > "$RUNNER_TEMP/aera-infiniti-artifact/SHA256SUMS"
+
+      - name: Upload AERA recovery artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: AERA-infiniti-aera-16.0-${{ github.sha }}
+          path: ${{ runner.temp }}/aera-infiniti-artifact/
+          if-no-files-found: error
+          retention-days: 14
