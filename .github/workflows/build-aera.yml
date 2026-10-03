@@ -44,7 +44,9 @@ jobs:
           echo "$HOME/bin" >> "$GITHUB_PATH"
           mkdir -p "$AERA_ROOT"
           cd "$AERA_ROOT"
-          "$HOME/bin/repo" init -u https://github.com/AERA-Recovery/android_manifest.git -b aera-16.0
+          "$HOME/bin/repo" init --depth=1 \
+            -u https://github.com/AERA-Recovery/android_manifest.git \
+            -b aera-16.0
 
           # AERA manifest sources are public, so use HTTPS instead of requiring
           # an SSH private key on the hosted runner.
@@ -57,6 +59,7 @@ jobs:
           fi
 
           "$HOME/bin/repo" sync -c --force-sync --no-clone-bundle --no-tags -j"$(nproc)"
+          df -h "$AERA_ROOT"
 
       - name: Overlay OnePlus 15 infiniti device tree
         run: |
