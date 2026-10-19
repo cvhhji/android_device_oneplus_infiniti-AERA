@@ -18,6 +18,8 @@ jobs:
     timeout-minutes: 45
     env:
       GH_TOKEN: ${{ github.token }}
+      GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+      GITEE_REPOSITORY: zaomi/android_device_oneplus_infiniti-AERA
 
     steps:
       - name: Check out device tree and mirror tools
@@ -26,7 +28,7 @@ jobs:
       - name: Install Ed25519 verification dependency
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends python3-cryptography
+          sudo apt-get install -y --no-install-recommends python3-cryptography python3-requests
 
       - name: Verify and publish signed AERA plugin mirror
         run: bash "$GITHUB_WORKSPACE/tools/publish_aera_plugin_mirror.sh" "$GITHUB_REPOSITORY"

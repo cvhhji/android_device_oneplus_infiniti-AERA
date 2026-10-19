@@ -17,10 +17,34 @@ jobs:
       AERA_ROOT: /home/runner/android/AERA_16.0
       AERA_OUT: /home/runner/android/AERA_16.0/out
       GH_TOKEN: ${{ github.token }}
+      GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+      GITEE_REPOSITORY: zaomi/android_device_oneplus_infiniti-AERA
 
     steps:
       - name: Check out infiniti device tree
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Mirror infiniti device tree branch to Gitee
+        if: ${{ env.GITEE_TOKEN != '' }}
+        env:
+          GITEE_USERNAME: zaomi
+        run: |
+          cat > "$RUNNER_TEMP/gitee-askpass.sh" <<'EOF'
+          #!/usr/bin/env bash
+          case "$1" in
+            *Username*) printf '%s\n' "$GITEE_USERNAME" ;;
+            *Password*) printf '%s\n' "$GITEE_TOKEN" ;;
+            *) exit 1 ;;
+          esac
+          EOF
+          chmod 700 "$RUNNER_TEMP/gitee-askpass.sh"
+          export GIT_ASKPASS="$RUNNER_TEMP/gitee-askpass.sh"
+          export GIT_TERMINAL_PROMPT=0
+          git push \
+            "https://gitee.com/${GITEE_REPOSITORY}.git" \
+            "$GITHUB_SHA:refs/heads/aera-16.0"
 
       - name: Free runner disk space
         run: |
@@ -35,7 +59,7 @@ jobs:
             git git-lfs gnupg gperf imagemagick lib32ncurses-dev lib32readline-dev \
             lib32z1-dev libelf-dev libgl1-mesa-dev libncurses-dev libssl-dev \
             libxml2 libxml2-utils lz4 lzop openjdk-17-jdk pngcrush python3 \
-            python3-cryptography python-is-python3 rsync schedtool squashfs-tools \
+            python3-cryptography python3-requests python-is-python3 rsync schedtool squashfs-tools \
             unzip xsltproc zip zlib1g-dev
 
       - name: Install repo and sync AERA Android 16 sources
@@ -82,7 +106,7 @@ jobs:
       - name: Use this repository for OTA and signed plugin downloads
         run: |
           python3 "$GITHUB_WORKSPACE/tools/patch_aera_integrations.py" \
-            "$AERA_ROOT" "$GITHUB_REPOSITORY"
+            "$AERA_ROOT" "$GITHUB_REPOSITORY" "$GITEE_REPOSITORY"
 
       - name: Refresh signed AERA plugin mirror
         run: bash "$GITHUB_WORKSPACE/tools/publish_aera_plugin_mirror.sh" "$GITHUB_REPOSITORY"
@@ -167,7 +191,9 @@ jobs:
 
       - name: Create AERA update catalogs
         run: |
-          python3 - "$RUNNER_TEMP/aera-infiniti-release" "$GITHUB_REPOSITORY" <<'PY'
+          python3 - "$RUNNER_TEMP/aera-infiniti-release" \
+            "$GITHUB_REPOSITORY" "$GITEE_REPOSITORY" \
+            "$GITHUB_RUN_NUMBER" "${GITHUB_SHA:0:8}" <<'PY'
           from pathlib import Path
           import hashlib
           import json
@@ -176,6 +202,8 @@ jobs:
 
           release_dir = Path(sys.argv[1])
           repository = sys.argv[2]
+          gitee_repository = sys.argv[3]
+          release_tag = f"AERA-17.0-{sys.argv[4]}-{sys.argv[5]}"
           filename = "AERA-infiniti-aera-17.0-recovery.zip"
           package = release_dir / filename
           entry = {
@@ -185,7 +213,8 @@ jobs:
               "filename": filename,
               "size": package.stat().st_size,
               "sha256": hashlib.sha256(package.read_bytes()).hexdigest(),
-              "ota_url": f"https://github.com/{repository}/releases/latest/download/{filename}",
+              "ota_url": f"https://gitee.com/{gitee_repository}/releases/download/{release_tag}/{filename}",
+              "fallback_url": f"https://github.com/{repository}/releases/download/{release_tag}/{filename}",
               "changelog": [
                   "Synced the latest upstream Infiniti recovery changes.",
                   "Published with this repository's AVB-transplanted recovery image.",
@@ -208,6 +237,26 @@ jobs:
             --title "AERA Recovery 17.0 for OnePlus 15 (infiniti)" \
             --notes "Android 16 AERA source branch with the latest upstream Infiniti changes. Includes the AVB-transplanted recovery image, signed AERA installer ZIP, update catalogs, and SHA256SUMS." \
             --latest
+
+      - name: Publish AERA recovery Gitee mirror
+        if: ${{ env.GITEE_TOKEN != '' }}
+        run: |
+          release_dir="$RUNNER_TEMP/aera-infiniti-release"
+          release_tag="AERA-17.0-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:8}"
+          release_title="AERA Recovery 17.0 for OnePlus 15 (infiniti)"
+          release_notes="Android 16 AERA source branch with the latest upstream Infiniti changes. Includes the AVB-transplanted recovery image, signed AERA installer ZIP, update catalogs, and SHA256SUMS."
+          python3 "$GITHUB_WORKSPACE/tools/publish_aera_gitee_release.py" \
+            "$GITEE_REPOSITORY" "$release_dir" "$release_tag" \
+            "$release_title" "$release_notes" "aera-16.0"
+
+          latest_dir="$RUNNER_TEMP/aera-infiniti-latest"
+          mkdir -p "$latest_dir"
+          cp "$release_dir/catalog.json" "$release_dir/catalog-nightly.json" "$latest_dir/"
+          python3 "$GITHUB_WORKSPACE/tools/publish_aera_gitee_release.py" \
+            "$GITEE_REPOSITORY" "$latest_dir" "aera-latest" \
+            "AERA Recovery update catalogs" \
+            "Stable and nightly update catalogs for the infiniti recovery." \
+            "aera-16.0"
 
       - name: Upload AERA recovery artifact
         uses: actions/upload-artifact@v7
