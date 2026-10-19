@@ -149,8 +149,7 @@ const char *CatalogFallbackUrl() {
     )
     updater = replace_once(
         updater,
-        "SafeSha256(release->sha256) && SafeHttps(release->url) &&\n"
-        "      (release->fallback_url.empty() || SafeHttps(release->fallback_url));",
+        "SafeSha256(release->sha256) && SafeHttps(release->url);",
         "SafeSha256(release->sha256) && ValidOtaParts(*release) &&\n"
         "      (release->fallback_url.empty() || SafeHttps(release->fallback_url));",
         "OTA fallback URL validation",
