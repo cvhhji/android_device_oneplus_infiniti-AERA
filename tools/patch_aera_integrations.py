@@ -11,9 +11,9 @@ import sys
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
-    count = text.count(old)
-    if count == 0 and new in text:
+    if new in text:
         return text
+    count = text.count(old)
     if count != 1:
         raise SystemExit(f"Expected one source match for {label}; found {count}")
     return text.replace(old, new, 1)
@@ -443,23 +443,25 @@ std::string ResolveFallbackDownloadUrl(const std::string &url) {{
         "official plugin URL policy and dual mirror resolver",
     )
 
-    old_download_guard = '''  if (!OfficialUrl(url) || limit == 0 || limit > kMaxPayload) return false;
-  for (unsigned attempt = 0; attempt < 3; ++attempt) {'''
-    new_download_guard = '''  const std::string download_url = ResolvePrimaryDownloadUrl(url);
-  const std::string fallback_url = ResolveFallbackDownloadUrl(url);
-  if (download_url.empty() || limit == 0 || limit > kMaxPayload) return false;
-  for (unsigned attempt = 0; attempt < 6; ++attempt) {
-    if (attempt >= 3 && fallback_url.empty()) break;
-    const std::string &current_url = attempt < 3 ? download_url : fallback_url;'''
     plugins = replace_once(
-        plugins, old_download_guard, new_download_guard,
-        "plugin download URL resolution",
+        plugins,
+        "bool Download(const std::string &url, const std::string &path, uint64_t limit,",
+        "bool DownloadSingleUrl(const std::string &url, const std::string &path, uint64_t limit,",
+        "single-URL plugin transfer helper",
     )
     plugins = replace_once(
         plugins,
-        '"-O", path.c_str(), url.c_str(), nullptr};',
-        '"-O", path.c_str(), current_url.c_str(), nullptr};',
-        "plugin mirror download target",
+        "  if (!OfficialUrl(url) || limit == 0 || limit > kMaxPayload) return false;",
+        "  if (limit == 0 || limit > kMaxPayload || expected_size > limit) return false;",
+        "plugin transfer size limits",
+    )
+    multipart = Path(__file__).with_name("aera_plugin_multipart.inc").read_text(
+        encoding="utf-8"
+    ).rstrip()
+    hash_anchor = "\nbool HashFile(const std::string &path, uint64_t expected_size,"
+    plugins = replace_once(
+        plugins, hash_anchor, "\n" + multipart + "\n" + hash_anchor,
+        "anonymous Gitee multipart plugin downloads",
     )
     plugin_path.write_text(plugins, encoding="utf-8", newline="\n")
 

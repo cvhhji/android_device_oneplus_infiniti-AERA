@@ -32,7 +32,7 @@ the upstream Android 16 source branch.
 Each successful build publishes the AVB-transplanted recovery image, the
 matching signed AERA installer ZIP, SHA256SUMS, and stable/nightly update
 catalogs to GitHub Releases. When configured, the recovery image and update
-catalogs are also mirrored to Gitee for mainland downloads. The updater uses
+catalogs can be published to Gitee with a direct Git push. The updater uses
 Gitee first and falls back to this GitHub repository.
 
 The signed plugin catalog, its signature, and all hash-pinned packages are
@@ -41,10 +41,19 @@ downloads these repository files from Gitee Raw first and GitHub Raw as a
 fallback, then checks the catalog signature and package hashes. Update the
 catalog and package files together when refreshing the plugin set.
 
-To enable Gitee publishing and source-branch mirroring, add a Gitee personal
-access token with repository write access as the GitHub Actions secret
-`GITEE_TOKEN`. The Gitee repository is
-`zaomi/android_device_oneplus_infiniti-AERA`.
+Gitee requires login for anonymous Raw downloads of large files, even when
+they were uploaded with Git. Packages larger than 8 MiB therefore also have
+8 MiB `.part0`, `.part1`, ... files next to the complete original package.
+The recovery downloads and joins the parts automatically, then validates the
+complete package against its size and SHA-256 from the signed catalog. The
+GitHub fallback downloads the complete original package.
+
+To refresh the Gitee plugin mirror, run
+`python3 tools/prepare_aera_plugin_parts.py`, commit the catalog, packages,
+and generated parts, then push `aera-16.0` directly to
+`https://gitee.com/zaomi/android_device_oneplus_infiniti-AERA.git`.
+This plugin upload does not use GitHub Actions. Recovery image compilation
+and GitHub Release publication continue to run in GitHub Actions.
 
 The build defaults to Simplified Chinese, Beijing time (UTC+8 without daylight
 saving), and a 24-hour clock. Gitee provides a mainland-accessible mirror; the

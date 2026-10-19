@@ -9,7 +9,7 @@ import shutil
 import sys
 
 
-PART_SIZE = 20 * 1024 * 1024
+PART_SIZE = 8 * 1024 * 1024
 IMAGE_NAME = "AERA-infiniti-aera-17.0-recovery.img"
 PACKAGE_NAME = "AERA-infiniti-aera-17.0-recovery.zip"
 REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
