@@ -139,9 +139,6 @@ jobs:
           python3 "$GITHUB_WORKSPACE/tools/patch_aera_integrations.py" \
             "$AERA_ROOT" "$GITHUB_REPOSITORY" "$GITEE_REPOSITORY"
 
-      - name: Refresh signed AERA plugin mirror
-        run: bash "$GITHUB_WORKSPACE/tools/publish_aera_plugin_mirror.sh" "$GITHUB_REPOSITORY"
-
       - name: Add temporary swap space for Soong
         run: |
           sudo fallocate -l 12G /swapfile-extra
