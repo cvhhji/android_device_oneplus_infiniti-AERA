@@ -5,6 +5,7 @@ import re
 import os
 from pathlib import Path
 import sys
+import time
 from urllib.parse import quote
 
 import requests
@@ -17,7 +18,8 @@ TAG_RE = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
 
 
 def request(session: requests.Session, method: str, url: str, **kwargs):
-    response = session.request(method, url, timeout=(30, 900), **kwargs)
+    timeout = kwargs.pop("timeout", (30, 900))
+    response = session.request(method, url, timeout=timeout, **kwargs)
     if not response.ok:
         body = response.text[:1500]
         raise RuntimeError(
@@ -77,6 +79,50 @@ def list_attachments(session: requests.Session, repository: str, release_id: int
     if not isinstance(payload, list):
         raise RuntimeError("Gitee returned an invalid release attachment list")
     return payload
+
+
+def upload_attachment(
+    session: requests.Session, repository: str, release_id: int, path: Path
+):
+    url = f"{API_ROOT}/repos/{repository}/releases/{release_id}/attach_files"
+    for attempt in range(1, 4):
+        try:
+            with path.open("rb") as stream:
+                response = request(
+                    session,
+                    "POST",
+                    url,
+                    timeout=(60, 1800),
+                    files={"file": (path.name, stream, "application/octet-stream")},
+                )
+            return response.json()
+        except requests.RequestException as error:
+            # The server may finish storing an asset even if the runner loses
+            # the response while sending a large file. Check before retrying.
+            try:
+                attachments = list_attachments(session, repository, release_id)
+            except requests.RequestException:
+                attachments = []
+            for attachment in attachments:
+                if attachment.get("name") != path.name:
+                    continue
+                size = attachment.get("size")
+                if size is None or int(size) == path.stat().st_size:
+                    print(
+                        f"Verified {path.name} on Gitee after the upload response was lost"
+                    )
+                    return attachment
+
+            if attempt == 3:
+                raise RuntimeError(
+                    f"Upload of {path.name} failed after {attempt} attempts: {error}"
+                ) from error
+            delay = attempt * 15
+            print(
+                f"Upload of {path.name} failed on attempt {attempt}; "
+                f"retrying in {delay}s: {error}"
+            )
+            time.sleep(delay)
 
 
 def upload_order(tag: str, assets: list[Path]) -> list[Path]:
@@ -144,16 +190,8 @@ def main() -> None:
         )
         request(session, "DELETE", delete_url)
 
-    upload_url = f"{API_ROOT}/repos/{repository}/releases/{release_id}/attach_files"
     for path in upload_order(tag, assets):
-        with path.open("rb") as stream:
-            response = request(
-                session,
-                "POST",
-                upload_url,
-                files={"file": (path.name, stream, "application/octet-stream")},
-            )
-        result = response.json()
+        result = upload_attachment(session, repository, release_id, path)
         download_url = result.get("browser_download_url", "")
         expected_url = f"{GITEE_ROOT}/{repository}/releases/download/{tag}/{path.name}"
         if download_url and download_url != expected_url:

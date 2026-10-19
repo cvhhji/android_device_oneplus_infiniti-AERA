@@ -6,6 +6,7 @@ on:
       - aera-16.0
     paths-ignore:
       - ".github/workflows/**"
+      - "tools/publish_aera_gitee_release.py"
   workflow_dispatch:
 
 permissions:
