@@ -11,6 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -30,13 +31,39 @@ jobs:
       SOURCE_RUN_NUMBER: ${{ github.event.workflow_run.run_number }}
 
     steps:
-      - name: Check out the source commit that produced the release
+      - name: Skip if a newer recovery build has already succeeded
+        id: freshness
+        env:
+          CURRENT_BUILD_NUMBER: ${{ github.event.workflow_run.run_number }}
+        run: |
+          if [[ -z "$CURRENT_BUILD_NUMBER" ]]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          runs="$(gh run list \
+            --workflow "Build AERA Recovery infiniti" \
+            --branch aera-16.0 \
+            --limit 100 \
+            --json number,conclusion)"
+          newer_success="$(jq --argjson current "$CURRENT_BUILD_NUMBER" \
+            '[.[] | select(.number > $current and .conclusion == "success")] | length' \
+            <<< "$runs")"
+          if [[ "$newer_success" != "0" ]]; then
+            echo "A newer recovery build already succeeded; skipping this older Gitee mirror."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out current source and mirror tools
+        if: ${{ steps.freshness.outputs.proceed == 'true' }}
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: aera-16.0
           fetch-depth: 0
 
       - name: Require Gitee token
+        if: ${{ steps.freshness.outputs.proceed == 'true' }}
         run: |
           if [[ -z "$GITEE_TOKEN" ]]; then
             echo "::error::Add the GITEE_TOKEN repository secret before syncing to Gitee."
@@ -44,6 +71,7 @@ jobs:
           fi
 
       - name: Push latest source branch to Gitee
+        if: ${{ steps.freshness.outputs.proceed == 'true' }}
         env:
           GITEE_USERNAME: zaomi
         run: |
@@ -64,11 +92,13 @@ jobs:
             "refs/remotes/origin/aera-16.0:refs/heads/aera-16.0"
 
       - name: Install release publishing dependency
+        if: ${{ steps.freshness.outputs.proceed == 'true' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends python3-requests
 
       - name: Download the GitHub Release produced by the completed build
+        if: ${{ steps.freshness.outputs.proceed == 'true' }}
         id: release
         run: |
           if [[ -n "$SOURCE_RUN_NUMBER" ]]; then
@@ -85,6 +115,7 @@ jobs:
           echo "dir=$release_dir" >> "$GITHUB_OUTPUT"
 
       - name: Publish the per-build Gitee Release and latest OTA catalog
+        if: ${{ steps.freshness.outputs.proceed == 'true' }}
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           RELEASE_DIR: ${{ steps.release.outputs.dir }}
