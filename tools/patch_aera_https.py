@@ -8,7 +8,8 @@ import sys
 def replace_function(text: str, start: str, end: str, replacement: str) -> str:
     first = text.find(start)
     last = text.find(end, first)
-    if first < 0 or last < 0 or text.count(start) != 1:
+    if (first < 0 or last < 0 or text.count(start) != 1
+            or text.count(end) != 1):
         raise SystemExit(f"Could not locate the AERA transfer function: {start}")
     return text[:first] + replacement.rstrip() + "\n\n" + text[last:]
 
@@ -65,7 +66,7 @@ def main() -> None:
     updater = replace_function(
         updater,
         "bool DownloadFile(",
-        "bool HashFile(",
+        "bool ReadCatalog(",
         '''bool DownloadFile(const std::string &url, const std::string &path,
                   uint64_t maximum, uint64_t expected_size,
                   unsigned progress_start, unsigned progress_end,
