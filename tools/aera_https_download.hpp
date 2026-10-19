@@ -170,7 +170,13 @@ inline bool Download(const std::string &url, const std::string &path,
     kill(-supervisor, SIGKILL);
     // Covers failure before the child could establish its process group.
     if (!reported) kill(supervisor, SIGKILL);
-    waitpid(supervisor, nullptr, WNOHANG);
+    // A single WNOHANG check races with the supervisor's exit and leaves a
+    // zombie after each download. SIGKILL above makes this wait finite; a
+    // global reaper may already have collected the child (ECHILD is fine).
+    pid_t reaped;
+    do {
+      reaped = waitpid(supervisor, nullptr, 0);
+    } while (reaped < 0 && errno == EINTR);
     struct stat info{};
     if (!aborted && reported && WIFEXITED(status) && WEXITSTATUS(status) == 0 &&
         lstat(path.c_str(), &info) == 0 && S_ISREG(info.st_mode) &&

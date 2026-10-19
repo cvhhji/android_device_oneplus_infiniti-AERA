@@ -118,6 +118,7 @@ jobs:
 
       - name: Use this repository for OTA and signed plugin downloads
         run: |
+          python3 "$GITHUB_WORKSPACE/tools/patch_aera_resolver.py" "$AERA_ROOT"
           python3 "$GITHUB_WORKSPACE/tools/patch_aera_integrations.py" \
             "$AERA_ROOT" "$GITHUB_REPOSITORY" "$GITEE_REPOSITORY"
           python3 "$GITHUB_WORKSPACE/tools/patch_aera_https.py" "$AERA_ROOT"
