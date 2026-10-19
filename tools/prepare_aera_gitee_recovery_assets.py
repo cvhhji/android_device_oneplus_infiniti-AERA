@@ -117,7 +117,7 @@ def main() -> None:
 
     encoded_catalog = json.dumps(catalog, ensure_ascii=False, indent=2) + "\n"
     for name in ("catalog.json", "catalog-nightly.json"):
-        (release_dir / name).write_text(encoded_catalog, encoding="utf-8")
+        (release_dir / name).write_text(encoded_catalog, encoding="utf-8", newline="\n")
         shutil.copy2(release_dir / name, asset_dir / name)
 
     checksums = release_dir / "SHA256SUMS"
@@ -151,6 +151,7 @@ def main() -> None:
     (asset_dir / "GITEE-ASSETS.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
 
     image_names = [str(part["filename"]) for part in image_parts]
@@ -172,7 +173,7 @@ def main() -> None:
         "Verify the joined image and package against SHA256SUMS before flashing.",
     ]
     (asset_dir / "GITEE-DOWNLOADS.txt").write_text(
-        "\n".join(lines) + "\n", encoding="utf-8"
+        "\n".join(lines) + "\n", encoding="utf-8", newline="\n"
     )
 
     print(
