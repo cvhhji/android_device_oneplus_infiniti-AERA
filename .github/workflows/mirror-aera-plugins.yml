@@ -1,0 +1,32 @@
+name: Mirror AERA plugin packages
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 2 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: aera-plugin-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out device tree and mirror tools
+        uses: actions/checkout@v7
+
+      - name: Install Ed25519 verification dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-cryptography
+
+      - name: Verify and publish signed AERA plugin mirror
+        run: bash "$GITHUB_WORKSPACE/tools/publish_aera_plugin_mirror.sh" "$GITHUB_REPOSITORY"

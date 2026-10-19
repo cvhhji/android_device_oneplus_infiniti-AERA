@@ -22,17 +22,21 @@ carrying the OnePlus 15 integration for AERA Recovery Project R1.0.
 The proprietary graphics and audio files in this repository were extracted
 from the matching OnePlus 15 stock OTA. Do not reuse them on another platform.
 
-## Build
+## GitHub Actions builds and releases
 
-The GitHub Actions build defaults to Simplified Chinese, Beijing time (UTC+8
-without daylight saving), and a 24-hour clock. It also normalizes saved
-`TAIST-8` timezone settings that still have daylight saving enabled.
+Pushing to `aera-16.0` or starting **Build AERA Recovery infiniti** manually
+syncs the AERA `aera-16.0` Android 16 source and builds on GitHub Actions. The
+`17.0` text is the requested artifact and release naming; it does not change
+the upstream Android 16 source branch.
 
-```sh
-cd ~/Desktop/AERA_16.0
-source build/envsetup.sh
-lunch twrp_infiniti-bp2a-eng
-mka adbd recoveryimage
-```
+Each successful build publishes the AVB-transplanted recovery image, the
+matching signed AERA installer ZIP, SHA256SUMS, and stable/nightly update
+catalogs to a GitHub Release. The in-recovery updater reads those catalogs
+from this repository's latest release. A separate daily action mirrors the
+signed AERA plugin catalog and its hash-pinned packages to the prerelease
+`aera-plugins-mirror`, while preserving the AERA signature and SHA-256 checks.
 
-The output is written to `out/target/product/infiniti/`.
+The build defaults to Simplified Chinese, Beijing time (UTC+8 without daylight
+saving), and a 24-hour clock. GitHub-hosted Release downloads still depend on
+GitHub being reachable from the phone's network; a Gitee or China-hosted CDN
+endpoint would be needed to guarantee access on networks that block GitHub.
