@@ -1,0 +1,104 @@
+name: Sync AERA build to Gitee
+
+on:
+  workflow_run:
+    workflows:
+      - Build AERA Recovery infiniti
+    types:
+      - completed
+    branches:
+      - aera-16.0
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aera-gitee-release-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+      GITEE_REPOSITORY: zaomi/android_device_oneplus_infiniti-AERA
+      SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      SOURCE_RUN_NUMBER: ${{ github.event.workflow_run.run_number }}
+
+    steps:
+      - name: Check out the source commit that produced the release
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Require Gitee token
+        run: |
+          if [[ -z "$GITEE_TOKEN" ]]; then
+            echo "::error::Add the GITEE_TOKEN repository secret before syncing to Gitee."
+            exit 1
+          fi
+
+      - name: Push source branch to Gitee
+        env:
+          GITEE_USERNAME: zaomi
+        run: |
+          cat > "$RUNNER_TEMP/gitee-askpass.sh" <<'EOF'
+          #!/usr/bin/env bash
+          case "$1" in
+            *Username*) printf '%s\n' "$GITEE_USERNAME" ;;
+            *Password*) printf '%s\n' "$GITEE_TOKEN" ;;
+            *) exit 1 ;;
+          esac
+          EOF
+          chmod 700 "$RUNNER_TEMP/gitee-askpass.sh"
+          export GIT_ASKPASS="$RUNNER_TEMP/gitee-askpass.sh"
+          export GIT_TERMINAL_PROMPT=0
+          git push \
+            "https://gitee.com/${GITEE_REPOSITORY}.git" \
+            "$SOURCE_SHA:refs/heads/aera-16.0"
+
+      - name: Install release publishing dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-requests
+
+      - name: Download the GitHub Release produced by the completed build
+        id: release
+        run: |
+          if [[ -n "$SOURCE_RUN_NUMBER" ]]; then
+            release_tag="AERA-17.0-${SOURCE_RUN_NUMBER}-${SOURCE_SHA:0:8}"
+          else
+            release_tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)"
+          fi
+          release_dir="$RUNNER_TEMP/aera-infiniti-release"
+          mkdir -p "$release_dir"
+          gh release download "$release_tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "$release_dir"
+          echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "dir=$release_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Publish the per-build Gitee Release and latest OTA catalog
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_DIR: ${{ steps.release.outputs.dir }}
+        run: |
+          release_title="AERA Recovery 17.0 for OnePlus 15 (infiniti)"
+          release_notes="Android 16 AERA source branch with the latest upstream Infiniti changes. Includes the AVB-transplanted recovery image, signed AERA installer ZIP, update catalogs, and SHA256SUMS."
+          python3 "$GITHUB_WORKSPACE/tools/publish_aera_gitee_release.py" \
+            "$GITEE_REPOSITORY" "$RELEASE_DIR" "$RELEASE_TAG" \
+            "$release_title" "$release_notes" "aera-16.0"
+
+          latest_dir="$RUNNER_TEMP/aera-infiniti-latest"
+          mkdir -p "$latest_dir"
+          cp "$RELEASE_DIR/catalog.json" "$RELEASE_DIR/catalog-nightly.json" "$latest_dir/"
+          python3 "$GITHUB_WORKSPACE/tools/publish_aera_gitee_release.py" \
+            "$GITEE_REPOSITORY" "$latest_dir" "aera-latest" \
+            "AERA Recovery update catalogs" \
+            "Stable and nightly update catalogs for the infiniti recovery." \
+            "aera-16.0"

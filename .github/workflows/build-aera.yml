@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - aera-16.0
+    paths-ignore:
+      - ".github/workflows/**"
   workflow_dispatch:
 
 permissions:
