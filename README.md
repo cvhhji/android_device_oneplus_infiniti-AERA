@@ -31,11 +31,15 @@ the upstream Android 16 source branch.
 
 Each successful build publishes the AVB-transplanted recovery image, the
 matching signed AERA installer ZIP, SHA256SUMS, and stable/nightly update
-catalogs to GitHub Releases and, when configured, Gitee Releases. The updater
-uses Gitee first and falls back to this GitHub repository. A separate daily
-action mirrors the signed AERA plugin catalog and its hash-pinned packages to
-both `aera-plugins-mirror` releases, while preserving AERA's signature and
-SHA-256 checks.
+catalogs to GitHub Releases. When configured, the recovery image and update
+catalogs are also mirrored to Gitee for mainland downloads. The updater uses
+Gitee first and falls back to this GitHub repository.
+
+The signed plugin catalog, its signature, and all hash-pinned packages are
+stored in `vendor/aera-plugins/` on this branch. The recovery's plugin manager
+downloads these repository files from Gitee Raw first and GitHub Raw as a
+fallback, then checks the catalog signature and package hashes. Update the
+catalog and package files together when refreshing the plugin set.
 
 To enable Gitee publishing and source-branch mirroring, add a Gitee personal
 access token with repository write access as the GitHub Actions secret

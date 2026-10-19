@@ -42,11 +42,13 @@ def main() -> None:
     github_release_base = f"https://github.com/{github_repository}/releases"
     gitee_asset_base = f"https://gitee.com/{gitee_repository}/raw"
     gitee_plugin_catalog_base = (
-        f"https://gitee.com/{gitee_repository}/releases/download/"
-        "aera-plugins-mirror/"
+        f"{gitee_asset_base}/aera-16.0/vendor/aera-plugins/"
     )
     gitee_plugin_package_base = gitee_plugin_catalog_base
-    github_plugin_base = f"{github_release_base}/download/aera-plugins-mirror/"
+    github_plugin_base = (
+        f"https://raw.githubusercontent.com/{github_repository}/"
+        "aera-16.0/vendor/aera-plugins/"
+    )
 
     updater_path = root / "bootable/recovery/aeraui/features/update/update_manager.cpp"
     if not updater_path.is_file():
@@ -462,8 +464,9 @@ std::string ResolveFallbackDownloadUrl(const std::string &url) {{
     plugin_path.write_text(plugins, encoding="utf-8", newline="\n")
 
     print(
-        "AERA OTA and signed plugin downloads now use Gitee first, with "
-        f"GitHub fallback ({gitee_repository}; {github_repository})."
+        "AERA OTA downloads use the repository mirrors; signed plugin "
+        "catalogs and packages use Gitee source files first, with GitHub "
+        f"Raw fallback ({gitee_repository}; {github_repository})."
     )
 
 
