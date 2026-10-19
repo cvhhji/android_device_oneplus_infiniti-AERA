@@ -9,6 +9,7 @@ on:
       - "tools/mirror_aera_plugins.py"
       - "tools/publish_aera_plugin_mirror.sh"
       - "tools/publish_aera_gitee_branch.sh"
+      - "tools/patch_aera_integrations.py"
       - "tools/prepare_aera_gitee_recovery_assets.py"
       - "tools/publish_aera_gitee_release.py"
   workflow_dispatch:

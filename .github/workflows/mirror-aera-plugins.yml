@@ -9,13 +9,13 @@ permissions:
   contents: write
 
 concurrency:
-  group: aera-plugin-mirror
+  group: aera-plugin-release-mirror-v1
   cancel-in-progress: false
 
 jobs:
   mirror:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 120
     env:
       GH_TOKEN: ${{ github.token }}
       GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}

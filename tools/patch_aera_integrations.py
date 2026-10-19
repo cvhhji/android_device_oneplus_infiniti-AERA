@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Point AERA OTA and signed plugin downloads at the owner's Gitee mirror.
 
-Gitee raw asset branches are the primary endpoints for mainland networks.
-GitHub Releases remain the fallback where Gitee is slow or unavailable.
+Gitee raw asset branches and release assets are the primary endpoints for
+mainland networks. GitHub Releases remain the fallback where Gitee is slow or
+unavailable.
 """
 
 from pathlib import Path
@@ -40,8 +41,11 @@ def main() -> None:
 
     github_release_base = f"https://github.com/{github_repository}/releases"
     gitee_asset_base = f"https://gitee.com/{gitee_repository}/raw"
-    gitee_plugin_catalog_base = f"{gitee_asset_base}/aera-plugin-assets/"
-    gitee_plugin_package_base = f"{gitee_asset_base}/aera-plugin-assets/"
+    gitee_plugin_catalog_base = (
+        f"https://gitee.com/{gitee_repository}/releases/download/"
+        "aera-plugins-mirror/"
+    )
+    gitee_plugin_package_base = gitee_plugin_catalog_base
     github_plugin_base = f"{github_release_base}/download/aera-plugins-mirror/"
 
     updater_path = root / "bootable/recovery/aeraui/features/update/update_manager.cpp"

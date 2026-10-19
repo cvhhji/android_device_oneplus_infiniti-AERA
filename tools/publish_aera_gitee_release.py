@@ -180,20 +180,24 @@ def main() -> None:
     )
     desired_names = {path.name for path in assets}
     attachments = list_attachments(session, repository, release_id)
-    for attachment in attachments:
-        attachment_id = attachment.get("id")
-        if not attachment_id:
-            raise RuntimeError("Gitee returned an attachment without an ID")
-        # Re-uploading the same names makes reruns idempotent and prunes stale
-        # plugin assets whose signed catalog entry has been removed upstream.
-        delete_url = (
-            f"{API_ROOT}/repos/{repository}/releases/{release_id}/"
-            f"attach_files/{attachment_id}"
-        )
-        request(session, "DELETE", delete_url)
-
     for path in upload_order(tag, assets):
+        matching = [asset for asset in attachments if asset.get("name") == path.name]
+        if any(int(asset.get("size", -1)) == path.stat().st_size
+               for asset in matching):
+            print(f"Already present: {path.name} ({path.stat().st_size} bytes)")
+            continue
+        for attachment in matching:
+            attachment_id = attachment.get("id")
+            if not attachment_id:
+                raise RuntimeError("Gitee returned an attachment without an ID")
+            delete_url = (
+                f"{API_ROOT}/repos/{repository}/releases/{release_id}/"
+                f"attach_files/{attachment_id}"
+            )
+            request(session, "DELETE", delete_url)
+            attachments.remove(attachment)
         result = upload_attachment(session, repository, release_id, path)
+        attachments.append(result)
         download_url = result.get("browser_download_url", "")
         expected_url = f"{GITEE_ROOT}/{repository}/releases/download/{tag}/{path.name}"
         if download_url and download_url != expected_url:
@@ -202,6 +206,20 @@ def main() -> None:
                 f"{download_url}"
             )
         print(f"Uploaded {path.name} ({path.stat().st_size} bytes) to {tag}")
+
+    # Prune stale assets only after every required upload has succeeded. This
+    # keeps a failed or cancelled mirror run resumable without emptying release.
+    for attachment in list_attachments(session, repository, release_id):
+        if attachment.get("name") in desired_names:
+            continue
+        attachment_id = attachment.get("id")
+        if not attachment_id:
+            raise RuntimeError("Gitee returned an attachment without an ID")
+        delete_url = (
+            f"{API_ROOT}/repos/{repository}/releases/{release_id}/"
+            f"attach_files/{attachment_id}"
+        )
+        request(session, "DELETE", delete_url)
 
     release = get_release(session, repository, tag)
     if release is None:
