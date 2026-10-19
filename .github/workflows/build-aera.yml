@@ -92,6 +92,10 @@ jobs:
             exit 1
           fi
 
+          # The minimal manifest removes curl. Restore the matching Android 16
+          # source so recovery can use BoringSSL and verify HTTPS certificates.
+          sed -i '\#<remove-project path="external/curl"#d' .repo/manifests/remove-minimal.xml
+
           "$HOME/bin/repo" sync -c --force-sync --no-clone-bundle --no-tags -j"$(nproc)"
           df -h "$AERA_ROOT"
 
@@ -116,6 +120,7 @@ jobs:
         run: |
           python3 "$GITHUB_WORKSPACE/tools/patch_aera_integrations.py" \
             "$AERA_ROOT" "$GITHUB_REPOSITORY" "$GITEE_REPOSITORY"
+          python3 "$GITHUB_WORKSPACE/tools/patch_aera_https.py" "$AERA_ROOT"
 
       - name: Add temporary swap space for Soong
         run: |
@@ -136,7 +141,7 @@ jobs:
           source build/envsetup.sh
           lunch twrp_infiniti-bp2a-eng
 
-          mka adbd recoveryimage &
+          mka adbd curl recoveryimage &
           build_pid=$!
           while kill -0 "$build_pid" 2>/dev/null; do
             sleep 60

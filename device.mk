@@ -24,6 +24,7 @@ PRODUCT_PACKAGES += \
     aera-browser-jail \
     aera-gpu-probe \
     aera-infiniti-wlan-mac \
+    curl \
     lpflash \
     lpmake \
     lpunpack \
@@ -42,6 +43,10 @@ PRODUCT_EXTRA_RECOVERY_KEYS += \
 
 # Soong namespaces
 PRODUCT_SOONG_NAMESPACES += $(LOCAL_PATH)
+
+# Mozilla CA roots for the HTTPS plugin store and recovery updater.
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/network/cacert.pem:recovery/root/system/etc/security/aera-cacert.pem
 
 # Recovery-specific settings
 $(call inherit-product, $(LOCAL_PATH)/aera_infiniti.mk)

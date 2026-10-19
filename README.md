@@ -48,6 +48,14 @@ The recovery downloads and joins the parts automatically, then validates the
 complete package against its size and SHA-256 from the signed catalog. The
 GitHub fallback downloads the complete original package.
 
+Plugin and OTA transfers use the Android curl client with the Mozilla CA
+bundle, HTTPS-only redirects, IPv4 resolution, bounded connection/transfer
+timeouts, and cleanup of the entire download process group. Transfer status
+is reported explicitly even when recovery's global SIGCHLD handler reaps a
+child. Multipart progress updates while each part downloads. DHCP DNS is
+preserved, with mainland public resolvers ahead of overseas fallback servers.
+Package retries resume partial data when the server supports HTTP Range.
+
 To refresh the Gitee plugin mirror, run
 `python3 tools/prepare_aera_plugin_parts.py`, commit the catalog, packages,
 and generated parts, then push `aera-16.0` directly to
