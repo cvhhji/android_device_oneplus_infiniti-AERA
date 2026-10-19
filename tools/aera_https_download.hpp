@@ -6,6 +6,7 @@
 #include <csignal>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <fcntl.h>
 #include <functional>
 #include <poll.h>
@@ -16,6 +17,7 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <vector>
 
 namespace aera_https {
 
@@ -55,6 +57,16 @@ inline bool Download(const std::string &url, const std::string &path,
   const std::string max_size = std::to_string(maximum);
   const std::string seconds = std::to_string((timeout_ms + 999) / 1000);
   const std::string diagnostics = path + ".download.log";
+  // AERA's Bionic recovery resolver honors RES_OPTIONS. Bound DNS separately
+  // so an unresponsive DHCP resolver cannot consume the whole transfer budget.
+  std::vector<std::string> variables;
+  for (char **item = ::environ; item != nullptr && *item != nullptr; ++item)
+    if (strncmp(*item, "RES_OPTIONS=", 12) != 0) variables.emplace_back(*item);
+  variables.emplace_back("RES_OPTIONS=timeout:2 attempts:2");
+  std::vector<char *> environment;
+  for (const auto &variable : variables)
+    environment.push_back(const_cast<char *>(variable.c_str()));
+  environment.push_back(nullptr);
   const char *arguments[] = {
       curl, "--disable", "--fail", "--location", "--silent", "--show-error",
       "--ipv4", "--proto", "=https", "--proto-redir", "=https",
@@ -110,7 +122,7 @@ inline bool Download(const std::string &url, const std::string &path,
       if (transfer < 0) _exit(126);
       if (transfer == 0) {
         close(completion[1]);
-        execv(curl, const_cast<char *const *>(arguments));
+        execve(curl, const_cast<char *const *>(arguments), environment.data());
         _exit(127);
       }
       int status = 0;
