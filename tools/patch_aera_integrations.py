@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Point AERA OTA and signed plugin downloads at the owner's Gitee mirror.
 
-The Gitee releases are the primary endpoints for mainland networks. GitHub
-remains the fallback so the same image continues to work where Gitee is slow
-or unavailable.
+Gitee raw asset branches are the primary endpoints for mainland networks.
+GitHub Releases remain the fallback where Gitee is slow or unavailable.
 """
 
 from pathlib import Path
@@ -40,24 +39,67 @@ def main() -> None:
     gitee_repository = validate_repository(sys.argv[3], "Gitee")
 
     github_release_base = f"https://github.com/{github_repository}/releases"
-    gitee_release_base = f"https://gitee.com/{gitee_repository}/releases"
-    plugin_tag = "aera-plugins-mirror"
-    gitee_plugin_base = f"{gitee_release_base}/download/{plugin_tag}/"
-    github_plugin_base = f"{github_release_base}/download/{plugin_tag}/"
+    gitee_asset_base = f"https://gitee.com/{gitee_repository}/raw"
+    gitee_plugin_catalog_base = f"{gitee_asset_base}/aera-plugin-assets/"
+    gitee_plugin_package_base = f"{gitee_asset_base}/aera-plugin-assets/"
+    github_plugin_base = f"{github_release_base}/download/aera-plugins-mirror/"
 
     updater_path = root / "bootable/recovery/aeraui/features/update/update_manager.cpp"
     if not updater_path.is_file():
         raise SystemExit(f"AERA update source not found: {updater_path}")
     updater = updater_path.read_text(encoding="utf-8")
+    updater_includes = [
+        "#include <array>",
+        "#include <cerrno>",
+        "#include <fcntl.h>",
+        "#include <stdio.h>",
+        "#include <unistd.h>",
+    ]
+    missing_updater_includes = [
+        include for include in updater_includes if include not in updater
+    ]
+    if missing_updater_includes:
+        updater = replace_once(
+            updater,
+            "#include <cstdlib>",
+            "#include <cstdlib>\n" + "\n".join(missing_updater_includes),
+            "OTA multipart download dependencies",
+        )
+    updater = replace_once(
+        updater,
+        "bool DownloadFile(const std::string &url, const std::string &path,\n"
+        "                  uint64_t maximum, uint64_t expected_size,\n"
+        "                  unsigned progress_start, unsigned progress_end) {",
+        "bool DownloadFile(const std::string &url, const std::string &path,\n"
+        "                  uint64_t maximum, uint64_t expected_size,\n"
+        "                  unsigned progress_start, unsigned progress_end,\n"
+        "                  unsigned max_attempts = 2,\n"
+        "                  uint64_t timeout_override_ms = 0) {",
+        "bounded mirror download retries",
+    )
+    updater = replace_once(
+        updater,
+        "for (unsigned attempt = 0; attempt < 2 && !gCancel.load(); ++attempt) {",
+        "for (unsigned attempt = 0; attempt < max_attempts && !gCancel.load(); ++attempt) {",
+        "bounded mirror download attempts",
+    )
+    updater = replace_once(
+        updater,
+        "const uint64_t timeout_ms = maximum <= kMaxCatalog ? 30000 : 900000;",
+        "const uint64_t timeout_ms = timeout_override_ms != 0\n"
+        "        ? timeout_override_ms\n"
+        "        : (maximum <= kMaxCatalog ? 30000 : 900000);",
+        "bounded mirror download timeout",
+    )
 
     old_urls = '''constexpr char kStableCatalogUrl[] =
     "https://aera-recovery.com/catalog.json";
 constexpr char kNightlyCatalogUrl[] =
     "https://aera-recovery.com/catalog-nightly.json";'''
     new_urls = f'''constexpr char kStableCatalogUrl[] =
-    "{gitee_release_base}/download/aera-latest/catalog.json";
+    "{gitee_asset_base}/aera-recovery-assets/catalog.json";
 constexpr char kNightlyCatalogUrl[] =
-    "{gitee_release_base}/download/aera-latest/catalog-nightly.json";
+    "{gitee_asset_base}/aera-recovery-assets/catalog-nightly.json";
 constexpr char kGithubStableCatalogUrl[] =
     "{github_release_base}/latest/download/catalog.json";
 constexpr char kGithubNightlyCatalogUrl[] =
@@ -87,6 +129,18 @@ const char *CatalogFallbackUrl() {
   release->changelog.clear();'''
     new_parse_release = '''  release->url = value.get("ota_url", "").asString();
   if (release->url.empty()) release->url = value["url"].asString();
+  release->ota_parts.clear();
+  const Json::Value &parts = value["ota_parts"];
+  if (value.isMember("ota_parts") && !parts.isArray()) return false;
+  if (parts.isArray()) {
+    if (parts.size() > 32) return false;
+    for (Json::ArrayIndex i = 0; i < parts.size(); ++i) {
+      DownloadPart part;
+      part.url = parts[i].get("url", "").asString();
+      part.size = JsonUnsigned(parts[i]["size"]);
+      release->ota_parts.push_back(part);
+    }
+  }
   release->fallback_url = value.get("fallback_url", "").asString();
   release->changelog.clear();'''
     updater = replace_once(
@@ -95,10 +149,120 @@ const char *CatalogFallbackUrl() {
     )
     updater = replace_once(
         updater,
-        "SafeSha256(release->sha256) && SafeHttps(release->url);",
         "SafeSha256(release->sha256) && SafeHttps(release->url) &&\n"
         "      (release->fallback_url.empty() || SafeHttps(release->fallback_url));",
+        "SafeSha256(release->sha256) && ValidOtaParts(*release) &&\n"
+        "      (release->fallback_url.empty() || SafeHttps(release->fallback_url));",
         "OTA fallback URL validation",
+    )
+
+    updater = replace_once(
+        updater,
+        "bool ParseRelease(const Json::Value &value, Release *release) {",
+        '''bool ValidOtaParts(const Release &release) {
+  if (release.ota_parts.empty()) return SafeHttps(release.url);
+  if (release.ota_parts.size() > 32 || !SafeHttps(release.url)) return false;
+  constexpr uint64_t kMaxOtaPart = 20ULL * 1024 * 1024;
+  uint64_t total = 0;
+  for (const DownloadPart &part : release.ota_parts) {
+    if (!SafeHttps(part.url) || part.size == 0 || part.size > kMaxOtaPart ||
+        part.size > release.size || total > release.size - part.size)
+      return false;
+    total += part.size;
+  }
+  return total == release.size;
+}
+
+bool DownloadParts(const Release &release, const std::string &path) {
+  if (release.ota_parts.empty()) return false;
+  const std::string assembled_path = path + ".assembling";
+  unlink(path.c_str());
+  unlink(assembled_path.c_str());
+  int output = open(assembled_path.c_str(),
+                    O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC,
+                    0600);
+  if (output < 0) return false;
+
+  uint64_t total = 0;
+  bool ok = true;
+  std::array<unsigned char, 65536> buffer {};
+  for (size_t index = 0; index < release.ota_parts.size(); ++index) {
+    if (gCancel.load()) {
+      ok = false;
+      break;
+    }
+    const DownloadPart &part = release.ota_parts[index];
+    const std::string part_path = path + ".chunk" + std::to_string(index);
+    if (!DownloadFile(part.url, part_path, part.size + 1, part.size,
+                      0, 90, 1, 60000)) {
+      ok = false;
+      break;
+    }
+    const int input = open(part_path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (input < 0) {
+      ok = false;
+      break;
+    }
+    while (ok) {
+      const ssize_t count = read(input, buffer.data(), buffer.size());
+      if (count < 0 && errno == EINTR) continue;
+      if (count < 0) {
+        ok = false;
+        break;
+      }
+      if (count == 0) break;
+      if (static_cast<uint64_t>(count) > release.size - total) {
+        ok = false;
+        break;
+      }
+      size_t offset = 0;
+      while (offset < static_cast<size_t>(count)) {
+        const ssize_t written = write(
+            output, buffer.data() + offset,
+            static_cast<size_t>(count) - offset);
+        if (written < 0 && errno == EINTR) continue;
+        if (written <= 0) {
+          ok = false;
+          break;
+        }
+        offset += static_cast<size_t>(written);
+      }
+      total += static_cast<uint64_t>(count);
+      gDownloaded.store(total);
+      gTotal.store(release.size);
+      gProgress.store(static_cast<unsigned>(total * 90 / release.size));
+    }
+    close(input);
+    unlink(part_path.c_str());
+    if (!ok) break;
+  }
+
+  if (ok && total == release.size && fsync(output) == 0) {
+    if (close(output) != 0) ok = false;
+    output = -1;
+  } else {
+    ok = false;
+  }
+  if (output >= 0) close(output);
+  for (size_t index = 0; index < release.ota_parts.size(); ++index)
+    unlink((path + ".chunk" + std::to_string(index)).c_str());
+  if (!ok || total != release.size) {
+    unlink(assembled_path.c_str());
+    unlink(path.c_str());
+    return false;
+  }
+  unlink(path.c_str());
+  if (rename(assembled_path.c_str(), path.c_str()) != 0) {
+    unlink(assembled_path.c_str());
+    return false;
+  }
+  gDownloaded.store(release.size);
+  gProgress.store(90);
+  return true;
+}
+
+bool ParseRelease(const Json::Value &value, Release *release) {''',
+        "OTA multipart download implementation",
     )
 
     old_catalog_fetch = '''  const char *catalog_url = CatalogUrl();
@@ -128,12 +292,15 @@ const char *CatalogFallbackUrl() {
     SetPhase(Phase::kError, "The recovery package could not be downloaded", true);
     return false;
   }'''
-    new_package_fetch = '''  bool package_downloaded = DownloadFile(
-      snapshot.release.url, partial_path, limit, snapshot.release.size, 0, 90);
+    new_package_fetch = '''  bool package_downloaded = snapshot.release.ota_parts.empty()
+      ? DownloadFile(snapshot.release.url, partial_path, limit,
+                     snapshot.release.size, 0, 90)
+      : DownloadParts(snapshot.release, partial_path);
   if (!package_downloaded && !snapshot.release.fallback_url.empty()) {
+    unlink(partial_path.c_str());
     package_downloaded = DownloadFile(
         snapshot.release.fallback_url, partial_path, limit,
-        snapshot.release.size, 0, 90);
+        snapshot.release.size, 0, 90, 1, 300000);
   }
   if (!package_downloaded) {
     SetPhase(Phase::kError, "The recovery package could not be downloaded", true);
@@ -143,12 +310,51 @@ const char *CatalogFallbackUrl() {
         updater, old_package_fetch, new_package_fetch,
         "OTA package fallback download",
     )
+    old_package_verify = '''  if (!HashFile(partial_path, snapshot.release.size, snapshot.release.sha256)) {
+    unlink(partial_path.c_str());
+    SetPhase(Phase::kError,
+             "The downloaded package does not match its SHA-256", true);
+    return false;
+  }'''
+    new_package_verify = '''  if (!HashFile(partial_path, snapshot.release.size, snapshot.release.sha256)) {
+    unlink(partial_path.c_str());
+    bool fallback_verified = false;
+    if (!snapshot.release.fallback_url.empty()) {
+      SetPhase(Phase::kDownloading,
+               "The Gitee package did not verify; trying GitHub", true);
+      fallback_verified = DownloadFile(
+          snapshot.release.fallback_url, partial_path, limit,
+          snapshot.release.size, 0, 90, 1, 300000);
+      if (fallback_verified) {
+        SetPhase(Phase::kVerifying, "Verifying the downloaded package", true);
+        fallback_verified = HashFile(
+            partial_path, snapshot.release.size, snapshot.release.sha256);
+      }
+    }
+    if (!fallback_verified) {
+      unlink(partial_path.c_str());
+      SetPhase(Phase::kError,
+               "The downloaded package does not match its SHA-256", true);
+      return false;
+    }
+  }'''
+    updater = replace_once(
+        updater, old_package_verify, new_package_verify,
+        "OTA checksum fallback download",
+    )
     updater_path.write_text(updater, encoding="utf-8", newline="\n")
 
     update_header_path = root / "bootable/recovery/aeraui/features/update/update_manager.hpp"
     if not update_header_path.is_file():
         raise SystemExit(f"AERA update header not found: {update_header_path}")
     update_header = update_header_path.read_text(encoding="utf-8")
+    update_header = replace_once(
+        update_header,
+        "struct Release {\n",
+        "struct DownloadPart {\n  std::string url;\n  uint64_t size = 0;\n};\n\n"
+        "struct Release {\n  std::vector<DownloadPart> ota_parts;\n",
+        "OTA multipart download model",
+    )
     update_header = replace_once(
         update_header,
         "  std::string url;\n  std::vector<std::string> changelog;",
@@ -165,13 +371,13 @@ const char *CatalogFallbackUrl() {
     plugins = replace_once(
         plugins,
         '"https://raw.githubusercontent.com/AERA-Plugins/registry/main/catalog.json"',
-        f'"{gitee_plugin_base}catalog.json"',
+        f'"{gitee_plugin_catalog_base}catalog.json"',
         "plugin catalog URL",
     )
     plugins = replace_once(
         plugins,
         '"https://raw.githubusercontent.com/AERA-Plugins/registry/main/catalog.json.sig"',
-        f'"{gitee_plugin_base}catalog.json.sig"',
+        f'"{gitee_plugin_catalog_base}catalog.json.sig"',
         "plugin catalog signature URL",
     )
 
@@ -181,7 +387,7 @@ const char *CatalogFallbackUrl() {
   return url.compare(0, sizeof(raw) - 1, raw) == 0 ||
          url.compare(0, sizeof(github) - 1, github) == 0;
 }'''
-    new_url_resolution = f'''constexpr char kGiteePluginMirrorPrefix[] = "{gitee_plugin_base}";
+    new_url_resolution = f'''constexpr char kGiteePluginMirrorPrefix[] = "{gitee_plugin_package_base}";
 constexpr char kGithubPluginMirrorPrefix[] = "{github_plugin_base}";
 bool OfficialUrl(const std::string &url) {{
   constexpr char raw[] = "https://raw.githubusercontent.com/AERA-Plugins/";

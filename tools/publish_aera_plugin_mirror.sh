@@ -46,11 +46,8 @@ echo "Updated $repository release $tag with ${#package_assets[@]} verified plugi
 
 if [[ -n "${GITEE_TOKEN:-}" ]]; then
   gitee_repository=${GITEE_REPOSITORY:-zaomi/android_device_oneplus_infiniti-AERA}
-  python3 "$workspace/tools/publish_aera_gitee_release.py" \
-    "$gitee_repository" "$asset_dir" "$tag" \
-    "AERA signed plugin mirror" \
-    "Mirrored AERA's signed catalog and checksum-pinned plugin packages. The recovery verifies the original catalog and package signatures and hashes." \
-    "aera-16.0"
+  bash "$workspace/tools/publish_aera_gitee_branch.sh" \
+    "$gitee_repository" "aera-plugin-assets" "$asset_dir"
 else
   echo "GITEE_TOKEN is not configured; skipping the Gitee plugin mirror."
 fi

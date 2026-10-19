@@ -6,11 +6,19 @@ on:
       - aera-16.0
     paths-ignore:
       - ".github/workflows/**"
+      - "tools/mirror_aera_plugins.py"
+      - "tools/publish_aera_plugin_mirror.sh"
+      - "tools/publish_aera_gitee_branch.sh"
+      - "tools/prepare_aera_gitee_recovery_assets.py"
       - "tools/publish_aera_gitee_release.py"
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: aera-recovery-build-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -22,6 +30,8 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
       GITEE_REPOSITORY: zaomi/android_device_oneplus_infiniti-AERA
+      CCACHE_EXEC: /usr/bin/ccache
+      USE_CCACHE: "1"
 
     steps:
       - name: Check out infiniti device tree
@@ -64,6 +74,24 @@ jobs:
             libxml2 libxml2-utils lz4 lzop openjdk-17-jdk pngcrush python3 \
             python3-cryptography python3-requests python-is-python3 rsync schedtool squashfs-tools \
             unzip xsltproc zip zlib1g-dev
+
+      - name: Restore Android compiler cache
+        id: ccache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/aera-ccache
+          key: aera-ccache-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            aera-ccache-v1-${{ runner.os }}-
+
+      - name: Configure Android compiler cache
+        run: |
+          export CCACHE_DIR="$RUNNER_TEMP/aera-ccache"
+          echo "CCACHE_DIR=$CCACHE_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$CCACHE_DIR"
+          ccache --version
+          ccache -M 4G
+          ccache --show-stats
 
       - name: Install repo and sync AERA Android 16 sources
         run: |
@@ -129,6 +157,7 @@ jobs:
           cd "$AERA_ROOT"
           export PATH="$HOME/bin:$PATH"
           export OUT_DIR="$AERA_OUT"
+          ccache --zero-stats
           source build/envsetup.sh
           lunch twrp_infiniti-bp2a-eng
 
@@ -144,6 +173,18 @@ jobs:
             fi
           done
           wait "$build_pid"
+
+      - name: Report compiler cache statistics
+        if: always()
+        run: ccache --show-stats || true
+
+      - name: Save Android compiler cache
+        if: always() && steps.ccache-restore.outcome == 'success' && steps.ccache-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: ${{ runner.temp }}/aera-ccache
+          key: aera-ccache-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Remove temporary swap space
         if: success()
@@ -229,6 +270,14 @@ jobs:
               (release_dir / name).write_text(encoded, encoding="utf-8")
           PY
 
+      - name: Prepare Gitee raw asset parts for mainland downloads
+        run: |
+          release_dir="$RUNNER_TEMP/aera-infiniti-release"
+          release_tag="AERA-17.0-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:8}"
+          python3 "$GITHUB_WORKSPACE/tools/prepare_aera_gitee_recovery_assets.py" \
+            "$release_dir" "$RUNNER_TEMP/aera-gitee-recovery-assets" \
+            "$GITEE_REPOSITORY" "$GITHUB_REPOSITORY" "$release_tag"
+
       - name: Publish AERA recovery GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -240,26 +289,6 @@ jobs:
             --title "AERA Recovery 17.0 for OnePlus 15 (infiniti)" \
             --notes "Android 16 AERA source branch with the latest upstream Infiniti changes. Includes the AVB-transplanted recovery image, signed AERA installer ZIP, update catalogs, and SHA256SUMS." \
             --latest
-
-      - name: Publish AERA recovery Gitee mirror
-        if: ${{ env.GITEE_TOKEN != '' }}
-        run: |
-          release_dir="$RUNNER_TEMP/aera-infiniti-release"
-          release_tag="AERA-17.0-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:8}"
-          release_title="AERA Recovery 17.0 for OnePlus 15 (infiniti)"
-          release_notes="Android 16 AERA source branch with the latest upstream Infiniti changes. Includes the AVB-transplanted recovery image, signed AERA installer ZIP, update catalogs, and SHA256SUMS."
-          python3 "$GITHUB_WORKSPACE/tools/publish_aera_gitee_release.py" \
-            "$GITEE_REPOSITORY" "$release_dir" "$release_tag" \
-            "$release_title" "$release_notes" "aera-16.0"
-
-          latest_dir="$RUNNER_TEMP/aera-infiniti-latest"
-          mkdir -p "$latest_dir"
-          cp "$release_dir/catalog.json" "$release_dir/catalog-nightly.json" "$latest_dir/"
-          python3 "$GITHUB_WORKSPACE/tools/publish_aera_gitee_release.py" \
-            "$GITEE_REPOSITORY" "$latest_dir" "aera-latest" \
-            "AERA Recovery update catalogs" \
-            "Stable and nightly update catalogs for the infiniti recovery." \
-            "aera-16.0"
 
       - name: Upload AERA recovery artifact
         uses: actions/upload-artifact@v7

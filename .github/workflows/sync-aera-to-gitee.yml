@@ -41,6 +41,7 @@ jobs:
             exit 0
           fi
           runs="$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
             --workflow "Build AERA Recovery infiniti" \
             --branch aera-16.0 \
             --limit 100 \
@@ -91,12 +92,6 @@ jobs:
             "https://gitee.com/${GITEE_REPOSITORY}.git" \
             "refs/remotes/origin/aera-16.0:refs/heads/aera-16.0"
 
-      - name: Install release publishing dependency
-        if: ${{ steps.freshness.outputs.proceed == 'true' }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends python3-requests
-
       - name: Download the GitHub Release produced by the completed build
         if: ${{ steps.freshness.outputs.proceed == 'true' }}
         id: release
@@ -114,23 +109,20 @@ jobs:
           echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
           echo "dir=$release_dir" >> "$GITHUB_OUTPUT"
 
-      - name: Publish the per-build Gitee Release and latest OTA catalog
+      - name: Prepare chunked recovery assets and Gitee OTA catalogs
         if: ${{ steps.freshness.outputs.proceed == 'true' }}
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           RELEASE_DIR: ${{ steps.release.outputs.dir }}
         run: |
-          release_title="AERA Recovery 17.0 for OnePlus 15 (infiniti)"
-          release_notes="Android 16 AERA source branch with the latest upstream Infiniti changes. Includes the AVB-transplanted recovery image, signed AERA installer ZIP, update catalogs, and SHA256SUMS."
-          python3 "$GITHUB_WORKSPACE/tools/publish_aera_gitee_release.py" \
-            "$GITEE_REPOSITORY" "$RELEASE_DIR" "$RELEASE_TAG" \
-            "$release_title" "$release_notes" "aera-16.0"
+          release_assets="$RUNNER_TEMP/aera-gitee-recovery-assets"
+          python3 "$GITHUB_WORKSPACE/tools/prepare_aera_gitee_recovery_assets.py" \
+            "$RELEASE_DIR" "$release_assets" "$GITEE_REPOSITORY" \
+            "$GITHUB_REPOSITORY" "$RELEASE_TAG"
 
-          latest_dir="$RUNNER_TEMP/aera-infiniti-latest"
-          mkdir -p "$latest_dir"
-          cp "$RELEASE_DIR/catalog.json" "$RELEASE_DIR/catalog-nightly.json" "$latest_dir/"
-          python3 "$GITHUB_WORKSPACE/tools/publish_aera_gitee_release.py" \
-            "$GITEE_REPOSITORY" "$latest_dir" "aera-latest" \
-            "AERA Recovery update catalogs" \
-            "Stable and nightly update catalogs for the infiniti recovery." \
-            "aera-16.0"
+      - name: Publish chunked recovery assets and OTA catalog to Gitee
+        if: ${{ steps.freshness.outputs.proceed == 'true' }}
+        run: |
+          bash "$GITHUB_WORKSPACE/tools/publish_aera_gitee_branch.sh" \
+            "$GITEE_REPOSITORY" "aera-recovery-assets" \
+            "$RUNNER_TEMP/aera-gitee-recovery-assets"
