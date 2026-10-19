@@ -92,7 +92,9 @@ def upload_attachment(
                     session,
                     "POST",
                     url,
-                    timeout=(60, 1800),
+                    # Requests uses the connection timeout while writing the
+                    # multipart body, so large assets need a generous value.
+                    timeout=(1800, 1800),
                     files={"file": (path.name, stream, "application/octet-stream")},
                 )
             return response.json()
