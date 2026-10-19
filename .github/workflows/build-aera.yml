@@ -115,6 +115,8 @@ jobs:
         run: |
           python3 "$GITHUB_WORKSPACE/tools/patch_aera_defaults.py" \
             "$AERA_ROOT/bootable/recovery"
+          python3 "$GITHUB_WORKSPACE/tools/patch_aera_time.py" \
+            "$AERA_ROOT/bootable/recovery"
 
       - name: Use this repository for OTA and signed plugin downloads
         run: |
@@ -223,7 +225,7 @@ jobs:
           import hashlib
           import json
           import sys
-          import time
+          import zipfile
 
           release_dir = Path(sys.argv[1])
           repository = sys.argv[2]
@@ -231,10 +233,23 @@ jobs:
           release_tag = f"AERA-17.0-{sys.argv[4]}-{sys.argv[5]}"
           filename = "AERA-infiniti-aera-17.0-recovery.zip"
           package = release_dir / filename
+          # The updater compares this field with ro.build.date.utc_aera.
+          # Packaging time is later and would advertise the installed build
+          # again after every reboot. Read the signed package's build time.
+          with zipfile.ZipFile(package) as archive:
+              properties = dict(
+                  line.split("=", 1)
+                  for line in archive.read("META-INF/debug/default.prop").decode().splitlines()
+                  if "=" in line and not line.startswith("#")
+              )
+          build_time = int(properties.get(
+              "ro.build.date.utc_aera", properties.get("ro.build.date.utc", "0")))
+          if build_time <= 0:
+              raise SystemExit("The installer is missing its recovery build timestamp")
           entry = {
               "version": "R1.0",
               "build_type": "Beta",
-              "build_time": int(time.time()),
+              "build_time": build_time,
               "filename": filename,
               "size": package.stat().st_size,
               "sha256": hashlib.sha256(package.read_bytes()).hexdigest(),
