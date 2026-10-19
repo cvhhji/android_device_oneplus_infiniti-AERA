@@ -43,7 +43,7 @@ jobs:
             exit 1
           fi
 
-      - name: Push source branch to Gitee
+      - name: Push latest source branch to Gitee
         env:
           GITEE_USERNAME: zaomi
         run: |
@@ -58,9 +58,10 @@ jobs:
           chmod 700 "$RUNNER_TEMP/gitee-askpass.sh"
           export GIT_ASKPASS="$RUNNER_TEMP/gitee-askpass.sh"
           export GIT_TERMINAL_PROMPT=0
+          git fetch origin aera-16.0
           git push \
             "https://gitee.com/${GITEE_REPOSITORY}.git" \
-            "$SOURCE_SHA:refs/heads/aera-16.0"
+            "refs/remotes/origin/aera-16.0:refs/heads/aera-16.0"
 
       - name: Install release publishing dependency
         run: |
