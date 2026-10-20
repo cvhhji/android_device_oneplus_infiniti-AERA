@@ -6,16 +6,13 @@ import re
 import sys
 
 
-def main() -> None:
-    if len(sys.argv) != 2:
-        raise SystemExit(f"Usage: {sys.argv[0]} <extracted installer directory>")
-    source = Path(sys.argv[1]) / "META-INF/com/google/android/update-binary"
+def patch_source(source: Path) -> None:
     text = source.read_text(encoding="utf-8")
     if not re.search(r'^TARGET_DEVICE="infiniti"$', text, re.MULTILINE):
         raise SystemExit("Refusing to change an installer for a different device")
     marker = "# infiniti: update only the recovery slot that actually booted."
     if marker in text:
-        print("The infiniti installer already writes only the booted recovery slot.")
+        print(f"{source.name} already writes only the booted recovery slot.")
         return
     start = '\tif [ "$name" = "recovery" ]; then\n'
     end = '\n# vendor_boot as recovery - flash both slots and return\n'
@@ -63,7 +60,21 @@ def main() -> None:
     )
     source.write_text(text,
                       encoding="utf-8", newline="\n")
-    print("Infiniti recovery installer writes only ro.boot.slot_suffix and rejects an unknown slot.")
+    print(f"{source.name} writes only ro.boot.slot_suffix and rejects an unknown slot.")
+
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        raise SystemExit(f"Usage: {sys.argv[0]} <extracted installer directory>")
+    directory = Path(sys.argv[1]) / "META-INF/com/google/android"
+    sources = [directory / name for name in ("update-binary", "aera-installer")]
+    for source in sources:
+        if not source.is_file():
+            raise SystemExit(f"Required installer entry is missing: {source}")
+    # update-binary hands AERA's own updater off to aera-installer. Both
+    # executable entries must carry the same partition policy before signing.
+    for source in sources:
+        patch_source(source)
 
 
 if __name__ == "__main__":
