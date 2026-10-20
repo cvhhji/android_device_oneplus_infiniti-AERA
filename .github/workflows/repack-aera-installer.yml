@@ -17,7 +17,7 @@ on:
         default: AERA-17.0-28-f20b5aaa-slotfix1
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   repackage:
@@ -38,17 +38,15 @@ jobs:
           python3 tools/repack_aera_installer.py \
             "$GITHUB_REPOSITORY" "$SOURCE_TAG" "$SOURCE_COMMIT" \
             "$OUTPUT_TAG" "$RUNNER_TEMP/repacked-release"
-      - name: Publish corrected installer with the exact original image
-        env:
-          OUTPUT_TAG: ${{ inputs.output_tag }}
-          SOURCE_COMMIT: ${{ inputs.source_commit }}
-        run: |
-          gh release create "$OUTPUT_TAG" --target "$SOURCE_COMMIT" \
-            --title "AERA 17.0 第28轮 · 当前槽位安装包" \
-            --notes-file "$RUNNER_TEMP/repacked-release/RELEASE_NOTES.md" \
-            "$RUNNER_TEMP/repacked-release/AERA-infiniti-aera-17.0-recovery.img" \
-            "$RUNNER_TEMP/repacked-release/AERA-infiniti-aera-17.0-recovery.zip" \
-            "$RUNNER_TEMP/repacked-release/SHA256SUMS" \
-            "$RUNNER_TEMP/repacked-release/catalog.json" \
-            "$RUNNER_TEMP/repacked-release/catalog-nightly.json" \
-            "$RUNNER_TEMP/repacked-release/installer-repack-report.json"
+      - name: Preserve signed installer for authenticated publication
+        uses: actions/upload-artifact@v4
+        with:
+          name: corrected-installer
+          compression-level: 0
+          path: |
+            ${{ runner.temp }}/repacked-release/AERA-infiniti-aera-17.0-recovery.zip
+            ${{ runner.temp }}/repacked-release/SHA256SUMS
+            ${{ runner.temp }}/repacked-release/catalog.json
+            ${{ runner.temp }}/repacked-release/catalog-nightly.json
+            ${{ runner.temp }}/repacked-release/installer-repack-report.json
+            ${{ runner.temp }}/repacked-release/RELEASE_NOTES.md
