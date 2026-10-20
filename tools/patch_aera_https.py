@@ -21,6 +21,8 @@ def main() -> None:
     recovery = root / "bootable/recovery"
     header = recovery / "aeraui/aera_https_download.hpp"
     header.write_bytes(Path(__file__).with_name(header.name).read_bytes())
+    network = header.with_name("aera_network_fallback.hpp")
+    network.write_bytes(Path(__file__).with_name(network.name).read_bytes())
     include = '#include "../../aera_https_download.hpp"\n'
     plugins_path = recovery / "aeraui/features/plugins/plugin_manager.cpp"
     plugins = plugins_path.read_text(encoding="utf-8")
@@ -123,8 +125,8 @@ def main() -> None:
         raise SystemExit("Could not locate the WLAN DNS properties")
     wlan = wlan.replace(old_properties, new_properties)
     wlan_path.write_text(wlan, encoding="utf-8", newline="\n")
-    print("AERA plugins and OTA use curl with verified TLS, IPv4, explicit status, "
-          "bounded retries, process-group cleanup, and cumulative whole-package progress.")
+    print("AERA plugins and OTA use verified TLS, bounded DNS endpoint fallback, "
+          "process-group cleanup, and cumulative whole-package progress.")
 
 
 if __name__ == "__main__":
