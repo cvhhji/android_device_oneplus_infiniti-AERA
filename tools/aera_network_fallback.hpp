@@ -214,6 +214,30 @@ inline std::vector<Address> Query(const std::string &host, const std::string &se
   close(fd);
   return result;
 }
+inline std::vector<Address> PrimaryAddresses(const std::string &url,
+    const std::string &resolver_file,
+    const std::function<bool()> &cancelled) {
+  const std::string host = GithubHost(url);
+  if (host.empty()) return {};
+  std::ifstream input(resolver_file);
+  std::string line;
+  while (!cancelled() && std::getline(input, line)) {
+    std::istringstream row(line);
+    std::string key, server;
+    row >> key >> server;
+    in_addr v4{}; in6_addr v6{};
+    if (key != "nameserver" ||
+        (inet_pton(AF_INET, server.c_str(), &v4) != 1 &&
+         inet_pton(AF_INET6, server.c_str(), &v6) != 1)) continue;
+    // Identify the browser jail's own primary resolver after a failure.
+    // Each query keeps its existing deadline; global resolver state is untouched.
+    auto result = Query(host, server, 1, cancelled);
+    const auto ipv6 = Query(host, server, 28, cancelled);
+    result.insert(result.end(), ipv6.begin(), ipv6.end());
+    return result;
+  }
+  return {};
+}
 inline std::vector<Address> Candidates(const std::string &url,
     const std::function<bool()> &cancelled) {
   const std::string host = GithubHost(url);

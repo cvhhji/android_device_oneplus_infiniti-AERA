@@ -51,13 +51,18 @@ inline bool Download(const std::string &url, const std::string &path,
                      unsigned attempts, uint64_t timeout_ms,
                      const std::string &forced_host = {},
                      const aera_network::Address &forced_address = {},
-                     bool allow_fallback = true) {
+                     bool allow_fallback = true,
+                     bool origin_headers_only = false) {
   constexpr char curl[] = "/system/bin/curl";
   constexpr char certificates[] = "/system/etc/security/aera-cacert.pem";
   if (url.compare(0, 8, "https://") != 0 || maximum == 0 ||
       expected_size > maximum || timeout_ms == 0 || attempts == 0 ||
       access(curl, X_OK) != 0 || access(certificates, R_OK) != 0)
     return false;
+  // This mode validates a public GitHub origin, never a package or its hash.
+  // Payload downloads retain their complete-body, size and signature checks.
+  if (origin_headers_only && (allow_fallback || forced_host.empty() ||
+      expected_size != 0 || url != "https://" + forced_host + "/")) return false;
   const std::string max_size = std::to_string(maximum);
   const std::string seconds = std::to_string((timeout_ms + 999) / 1000);
   const std::string diagnostics = path + ".download.log";
@@ -90,9 +95,11 @@ inline bool Download(const std::string &url, const std::string &path,
         "--proto", "=https", "--proto-redir", "=https", "--max-redirs", "5",
         "--cacert", certificates, "--connect-timeout", routes.empty() ? "15" : "8",
         "--max-time", seconds, "--speed-limit", "1024", "--speed-time", "30",
-        "--continue-at", "-", "--max-filesize", max_size, "--output", path,
+        "--max-filesize", max_size, "--output", path,
         // curl 8.12 exposes only the final host here, never signed URL queries.
         "--write-out", "%{stderr}\\nAERA_HTTPS_HOST=%{urle.host}\\n"};
+    if (origin_headers_only) values.push_back("--head");
+    else values.insert(values.end(), {"--continue-at", "-"});
     if (routes.empty()) values.push_back("--ipv4");
     for (const auto &route : routes) {
       const auto &ip = route.second.ip;

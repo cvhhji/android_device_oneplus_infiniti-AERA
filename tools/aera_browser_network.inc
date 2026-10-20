@@ -1,3 +1,4 @@
+// AERA endpoint recovery with header probes.
 // Network work stays outside LVGL and outside the signed WebKit runtime.
 // A public HTTPS probe verifies a DNS candidate before a temporary hosts entry
 // is used. Restarting the isolated worker discards its failed DNS/connection
@@ -50,6 +51,8 @@ bool BrowserNetworkTick(WebScene *s, bool visible) {
     s->session.Close();
     s->network_hosts_active = aera_network::BrowserHosts(s->state.directory);
     s->network_refresh = now + 5000;
+    fprintf(stderr, "AERA browser network: rebuilding session for %s through %s\n",
+            host.c_str(), s->network_winner.c_str());
     s->restart_url = s->network_url;
     s->session_was_started = false;
     s->finished = false;
@@ -81,6 +84,8 @@ bool BrowserNetworkTick(WebScene *s, bool visible) {
   s->network_working = true;
   s->network_cancel.store(false);
   s->network_done.store(false, std::memory_order_relaxed);
+  fprintf(stderr, "AERA browser network: recovery requested for %s reason=%s progress=%u\n",
+          host.c_str(), error ? "network-error" : "stalled", s->session.Progress());
   const std::string runtime = s->state.directory;
   s->network_worker = std::thread([s, url, host, runtime] {
     const auto cancelled = [s] {
@@ -91,16 +96,31 @@ bool BrowserNetworkTick(WebScene *s, bool visible) {
     const std::string probe = runtime + "/.network-probe";
     // Probe only the public origin, excluding paths, tokens and cookies.
     const std::string public_url = "https://" + host + "/";
+    const auto primary = aera_network::PrimaryAddresses(
+        url, runtime + "/etc/resolv.conf", cancelled);
+    const auto candidates = aera_network::Candidates(url, cancelled);
+    const auto primary_address = [&primary](const aera_network::Address &candidate) {
+      return std::any_of(primary.begin(), primary.end(), [&](const auto &entry) {
+        return entry.ip == candidate.ip;
+      });
+    };
+    const bool has_alternate = std::any_of(candidates.begin(), candidates.end(),
+        [&](const auto &candidate) { return !primary_address(candidate); });
     unsigned attempts = 0;
-    for (const auto &candidate : aera_network::Candidates(url, cancelled)) {
+    for (const auto &candidate : candidates) {
       if (cancelled() || attempts >= 3) break;
-      if (candidate.ip == old.ip) continue;
+      if (candidate.ip == old.ip || (has_alternate && primary_address(candidate))) continue;
       ++attempts;
+      fprintf(stderr, "AERA browser network: probing public origin %s endpoint %s\n",
+              host.c_str(), candidate.ip.c_str());
+      // A slow home-page body must not discard a TLS-verified alternate route.
+      // Only this origin probe uses HEAD; signed payloads still use full GET.
       if (aera_https::Download(public_url, probe, 2 * 1024 * 1024, 0,
-              [](uint64_t) {}, cancelled, 1, 8000, host, candidate, false) &&
+              [](uint64_t) {}, cancelled, 1, 8000, host, candidate, false, true) &&
           aera_network::Cached(host).ip == candidate.ip && !cancelled()) {
         s->network_winner = candidate.ip;
-        fprintf(stderr, "AERA browser network: verified alternate endpoint for %s\n", host.c_str());
+        fprintf(stderr, "AERA browser network: verified alternate endpoint for %s through %s\n",
+                host.c_str(), candidate.ip.c_str());
         break;
       }
     }

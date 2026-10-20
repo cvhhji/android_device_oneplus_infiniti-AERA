@@ -17,14 +17,31 @@ def main() -> None:
     scene = root / 'web_scene.cpp'
     header = root / 'session.hpp'
     source = root / 'session.cpp'
+    jail = root / 'jail_main.cpp'
     ui = scene.read_text(encoding='utf-8')
     declarations = header.read_text(encoding='utf-8')
     session = source.read_text(encoding='utf-8')
+    jail_text = jail.read_text(encoding='utf-8')
     if '// AERA bounded GitHub endpoint recovery' in ui:
-        if 'const std::string &LastUrl()' not in declarations:
+        if ('const std::string &LastUrl()' not in declarations or
+                '// AERA endpoint recovery with header probes.' not in ui or
+                '// AERA bounded browser task budget' not in jail_text):
             raise SystemExit('Partially applied browser network fallback')
         print('Browser GitHub endpoint fallback already applied.')
         return
+    jail_text = once(jail_text,
+        '  rlimit files{512U, 512U}, processes{192U, 192U}, core{0, 0},',
+        '''  // AERA bounded browser task budget
+  // RLIMIT_NPROC includes threads. Real browsing hit EAGAIN while creating
+  // WebKit children under the old 192-task allowance. Keep a finite browser-only
+  // budget and the existing hard memory, descriptor, UID and seccomp bounds.
+  const rlim_t process_limit = browser ? 512U : 192U;
+  rlimit files{512U, 512U}, processes{process_limit, process_limit}, core{0, 0},''')
+    jail_text = once(jail_text,
+        '  Check(setrlimit(RLIMIT_NPROC, &processes), "process limit");',
+        '''  Check(setrlimit(RLIMIT_NPROC, &processes), "process limit");
+  if (browser) fprintf(stderr, "AERA browser resource budget: tasks=%llu memory=1536MiB\\n",
+                       static_cast<unsigned long long>(process_limit));''')
     ui = '#include "../../aera_https_download.hpp"\n#include <atomic>\n' + ui
     ui = once(ui, '  std::thread worker;', '''  std::thread worker;
   // AERA bounded GitHub endpoint recovery
@@ -94,7 +111,7 @@ def main() -> None:
       last_error_ = message.text;
       ++error_revision_;
     } else if (message.kind == Kind::kKeyboardShow)''')
-    for path, text in ((scene, ui), (header, declarations), (source, session)):
+    for path, text in ((scene, ui), (header, declarations), (source, session), (jail, jail_text)):
         path.write_text(text, encoding='utf-8', newline='\n')
     print('AERA browser automatically retries GitHub network failures with verified DNS candidates.')
 
