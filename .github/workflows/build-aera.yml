@@ -287,6 +287,7 @@ jobs:
           release_tag="AERA-17.0-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:8}"
           gh release create "$release_tag" "$release_dir"/* \
             --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
             --title "AERA Recovery 17.0 for OnePlus 15 (infiniti)" \
             --notes-file "$GITHUB_WORKSPACE/RELEASE_NOTES.md" \
             --latest
