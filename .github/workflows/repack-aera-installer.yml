@@ -1,0 +1,54 @@
+name: Repackage an existing AERA installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_tag:
+        description: Existing cloud-built release
+        required: true
+        default: AERA-17.0-28-f20b5aaa
+      source_commit:
+        description: Exact image source commit
+        required: true
+        default: f20b5aaad284ed2bea1432fea49fba09771a9c84
+      output_tag:
+        description: Separate release for the corrected installer
+        required: true
+        default: AERA-17.0-28-f20b5aaa-slotfix1
+
+permissions:
+  contents: write
+
+jobs:
+  repackage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install certificate inspection dependency
+        run: sudo apt-get update -qq && sudo apt-get install -y python3-cryptography
+      - name: Preserve the existing image and sign a corrected installer
+        env:
+          SOURCE_TAG: ${{ inputs.source_tag }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          OUTPUT_TAG: ${{ inputs.output_tag }}
+        run: |
+          python3 tools/repack_aera_installer.py \
+            "$GITHUB_REPOSITORY" "$SOURCE_TAG" "$SOURCE_COMMIT" \
+            "$OUTPUT_TAG" "$RUNNER_TEMP/repacked-release"
+      - name: Publish corrected installer with the exact original image
+        env:
+          OUTPUT_TAG: ${{ inputs.output_tag }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          gh release create "$OUTPUT_TAG" --target "$SOURCE_COMMIT" \
+            --title "AERA 17.0 第28轮 · 当前槽位安装包" \
+            --notes-file "$RUNNER_TEMP/repacked-release/RELEASE_NOTES.md" \
+            "$RUNNER_TEMP/repacked-release/AERA-infiniti-aera-17.0-recovery.img" \
+            "$RUNNER_TEMP/repacked-release/AERA-infiniti-aera-17.0-recovery.zip" \
+            "$RUNNER_TEMP/repacked-release/SHA256SUMS" \
+            "$RUNNER_TEMP/repacked-release/catalog.json" \
+            "$RUNNER_TEMP/repacked-release/catalog-nightly.json" \
+            "$RUNNER_TEMP/repacked-release/installer-repack-report.json"
