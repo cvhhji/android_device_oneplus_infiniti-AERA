@@ -103,7 +103,7 @@ def main() -> None:
     wlan = wlan_path.read_text(encoding="utf-8")
     old_dns = 'for (const char* fallback : {"1.1.1.1", "8.8.8.8"}) {'
     new_dns = ('for (const char* fallback : '
-               '{"223.5.5.5", "119.29.29.29", "1.1.1.1", "8.8.8.8"}) {')
+               '{"223.5.5.5", "1.1.1.1", "119.29.29.29", "8.8.8.8"}) {')
     if old_dns not in wlan and new_dns not in wlan:
         raise SystemExit("Could not locate the WLAN fallback DNS list")
     wlan = wlan.replace(old_dns, new_dns)
@@ -113,7 +113,8 @@ def main() -> None:
             property_set("net.dns2", servers[1].c_str());
     }'''
     new_properties = '''    // Keep Android-property and resolv.conf consumers consistent. DHCP DNS
-    // remains first; mainland resolvers precede overseas public fallbacks.
+    // remains first. With one DHCP server, the first three entries contain
+    // one mainland and one global fallback, matching Bionic's three slots.
     for (size_t index = 0; index < 4; ++index) {
         const std::string key = "net.dns" + std::to_string(index + 1);
         property_set(key.c_str(), index < servers.size() ? servers[index].c_str() : "");

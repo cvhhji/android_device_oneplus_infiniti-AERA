@@ -124,6 +124,8 @@ jobs:
           python3 "$GITHUB_WORKSPACE/tools/patch_aera_integrations.py" \
             "$AERA_ROOT" "$GITHUB_REPOSITORY" "$GITEE_REPOSITORY"
           python3 "$GITHUB_WORKSPACE/tools/patch_aera_https.py" "$AERA_ROOT"
+          python3 "$GITHUB_WORKSPACE/tools/patch_aera_browser_fonts.py" "$AERA_ROOT"
+          python3 "$GITHUB_WORKSPACE/tools/patch_aera_rpc_channels.py" "$AERA_ROOT"
 
       - name: Add temporary swap space for Soong
         run: |

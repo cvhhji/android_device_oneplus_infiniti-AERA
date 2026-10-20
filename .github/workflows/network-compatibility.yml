@@ -1,0 +1,28 @@
+name: AERA network compatibility probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            tools/check_aera_network.py
+            vendor/aera-plugins
+          sparse-checkout-cone-mode: false
+      - name: Check runner region, mirrors, original payload, and DNS
+        run: python3 tools/check_aera_network.py
+      - name: Save network observations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aera-network-probe-${{ github.run_id }}
+          path: network-probe-report.json
+          if-no-files-found: error
