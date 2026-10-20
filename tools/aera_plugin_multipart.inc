@@ -30,7 +30,8 @@ bool DownloadGiteePluginParts(const std::string &url, const std::string &path,
     const uint64_t part_size =
         std::min<uint64_t>(kPluginMirrorPartSize, expected_size - total);
     if (!DownloadSingleUrl(url + ".part" + std::to_string(index), chunk,
-                           part_size, nullptr, 0, 0, part_size)) {
+                           part_size, progress, progress_start, progress_end, part_size,
+                           total, expected_size)) {
       ok = false;
       break;
     }
@@ -66,14 +67,16 @@ bool DownloadGiteePluginParts(const std::string &url, const std::string &path,
       if (!ok) break;
       copied += static_cast<uint64_t>(count);
       total += static_cast<uint64_t>(count);
-      if (progress) {
-        progress->downloaded_bytes.store(total);
-        progress->value.store(progress_start +
-            static_cast<unsigned>(total * span / expected_size));
-      }
     }
     close(input);
     unlink(chunk.c_str());
+    // Network bytes were counted before assembly. Publish only the complete
+    // part here so copying its first block cannot rewind the visible progress.
+    if (ok && progress) {
+      progress->downloaded_bytes.store(total);
+      progress->value.store(progress_start +
+          static_cast<unsigned>(total * span / expected_size));
+    }
   }
   if (ok && total == expected_size) {
     if (fsync(output) != 0) ok = false;

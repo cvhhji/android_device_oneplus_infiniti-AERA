@@ -199,7 +199,7 @@ bool DownloadParts(const Release &release, const std::string &path) {
     const DownloadPart &part = release.ota_parts[index];
     const std::string part_path = path + ".chunk" + std::to_string(index);
     if (!DownloadFile(part.url, part_path, part.size + 1, part.size,
-                      0, 90, 1, 60000)) {
+                      0, 90, 1, 60000, total, release.size)) {
       ok = false;
       break;
     }
@@ -232,10 +232,10 @@ bool DownloadParts(const Release &release, const std::string &path) {
         }
         offset += static_cast<size_t>(written);
       }
+      if (!ok) break;
       total += static_cast<uint64_t>(count);
-      gDownloaded.store(total);
-      gTotal.store(release.size);
-      gProgress.store(static_cast<unsigned>(total * 90 / release.size));
+      // The transfer callback already counted this complete part. Updating
+      // progress while copying it would rewind to its first 64 KiB again.
     }
     close(input);
     unlink(part_path.c_str());

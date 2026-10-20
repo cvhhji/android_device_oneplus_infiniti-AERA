@@ -37,26 +37,26 @@ def main() -> None:
                        uint64_t overall_size = 0) {
   if (limit == 0 || limit > kMaxPayload || expected_size > limit) return false;
   const uint64_t total = overall_size != 0 ? overall_size : expected_size;
+  if (total != 0 && (offset > total || expected_size > total - offset))
+    return false;
   const unsigned span = progress_end > progress_start
                             ? progress_end - progress_start : 0;
+  uint64_t reported = offset;
   const auto report = [&](uint64_t bytes) {
     if (!progress || total == 0) return;
-    const uint64_t amount = std::min(total, offset + std::min(bytes, limit));
+    reported = std::max(reported, offset + std::min(bytes, expected_size));
     progress->total_bytes.store(total);
-    progress->downloaded_bytes.store(amount);
+    progress->downloaded_bytes.store(reported);
     progress->value.store(progress_start +
-        static_cast<unsigned>(amount * span / total));
+        static_cast<unsigned>(reported * span / total));
   };
   report(0);
   return aera_https::Download(url, path, limit, expected_size, report,
       [] { return false; }, 2, limit <= kMaxCatalog ? 45000 : 900000);
 }''',
     )
-    plugins = plugins.replace(
-        "part_size, nullptr, 0, 0, part_size)",
-        "part_size, progress, progress_start, progress_end, part_size,\n"
-        "                           total, expected_size)",
-    )
+    if plugins.count("                           total, expected_size))") != 1:
+        raise SystemExit("Plugin multipart download is missing its whole-package offset")
     plugins_path.write_text(plugins, encoding="utf-8", newline="\n")
 
     updater_path = recovery / "aeraui/features/update/update_manager.cpp"
@@ -71,19 +71,28 @@ def main() -> None:
                   uint64_t maximum, uint64_t expected_size,
                   unsigned progress_start, unsigned progress_end,
                   unsigned max_attempts = 2,
-                  uint64_t timeout_override_ms = 0) {
+                  uint64_t timeout_override_ms = 0,
+                  uint64_t completed_bytes = 0,
+                  uint64_t overall_size = 0) {
   if (!SafeHttps(url) || maximum == 0) return false;
+  const uint64_t total = overall_size != 0 ? overall_size : expected_size;
+  if (total != 0 && (completed_bytes > total ||
+                    expected_size > total - completed_bytes)) return false;
   const uint64_t timeout_ms = timeout_override_ms != 0
       ? timeout_override_ms : (maximum <= kMaxCatalog ? 45000 : 900000);
   const unsigned span = progress_end > progress_start
                             ? progress_end - progress_start : 0;
+  uint64_t reported = completed_bytes;
   const auto report = [&](uint64_t bytes) {
-    if (expected_size == 0) return;
-    const uint64_t amount = std::min(bytes, expected_size);
-    gDownloaded.store(amount);
+    if (total == 0) return;
+    reported = std::max(reported,
+        completed_bytes + std::min(bytes, expected_size));
+    gDownloaded.store(reported);
+    gTotal.store(total);
     gProgress.store(progress_start +
-        static_cast<unsigned>(amount * span / expected_size));
+        static_cast<unsigned>(reported * span / total));
   };
+  report(0);
   return aera_https::Download(url, path, maximum, expected_size, report,
       [] { return gCancel.load(); }, max_attempts, timeout_ms);
 }''',
@@ -114,7 +123,7 @@ def main() -> None:
     wlan = wlan.replace(old_properties, new_properties)
     wlan_path.write_text(wlan, encoding="utf-8", newline="\n")
     print("AERA plugins and OTA use curl with verified TLS, IPv4, explicit status, "
-          "bounded retries, process-group cleanup, and continuous part progress.")
+          "bounded retries, process-group cleanup, and cumulative whole-package progress.")
 
 
 if __name__ == "__main__":

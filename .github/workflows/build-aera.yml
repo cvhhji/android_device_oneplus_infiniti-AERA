@@ -197,6 +197,7 @@ jobs:
           unzip -q "$source_zip" -d "$package_dir"
           test -s "$package_dir/recovery.img"
           cp -f "$release_dir/$image_name" "$package_dir/recovery.img"
+          python3 "$GITHUB_WORKSPACE/tools/patch_aera_installer.py" "$package_dir"
           (
             cd "$package_dir"
             zip -X -q -r "$release_dir/$zip_name" .
@@ -256,8 +257,10 @@ jobs:
               "ota_url": f"https://gitee.com/{gitee_repository}/releases/download/{release_tag}/{filename}",
               "fallback_url": f"https://github.com/{repository}/releases/download/{release_tag}/{filename}",
               "changelog": [
-                  "Synced the latest upstream Infiniti recovery changes.",
-                  "Published with this repository's AVB-transplanted recovery image.",
+                  "修复 recovery 和插件分片下载进度回退，按整包累计显示。",
+                  "安装器仅更新当前启动槽位的 recovery，保留另一槽位。",
+                  "保留开机校时、国内 DNS 回退及官方 AVB 元数据移植。",
+                  "2.4 GHz 热点稳定性仍待修复，当前建议使用已验证的 5 GHz 网络。",
               ],
           }
           catalog = {"schema": 1, "devices": {"infiniti": entry}}
@@ -283,7 +286,7 @@ jobs:
           gh release create "$release_tag" "$release_dir"/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "AERA Recovery 17.0 for OnePlus 15 (infiniti)" \
-            --notes "Android 16 AERA source branch with the latest upstream Infiniti changes. Includes the AVB-transplanted recovery image, signed AERA installer ZIP, update catalogs, and SHA256SUMS." \
+            --notes-file "$GITHUB_WORKSPACE/RELEASE_NOTES.md" \
             --latest
 
       - name: Upload AERA recovery artifact
