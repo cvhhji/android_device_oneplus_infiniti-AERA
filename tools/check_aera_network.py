@@ -3,6 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
+import os
 from pathlib import Path
 import secrets
 import socket
@@ -50,7 +51,9 @@ def download(task):
         target = Path(temporary) / 'payload'
         result = subprocess.run(['curl', '--disable', '--fail', '--location', '--ipv4',
             '--silent', '--show-error', '--connect-timeout', '10', '--max-time', '60',
-            '--max-filesize', str(task['size'] + 1), '--output', str(target),
+            # Redirect responses can be larger than a 129-byte signature.
+            # The final object must still match the exact size and digest.
+            '--max-filesize', str(max(65536, task['size'] + 1)), '--output', str(target),
             '--write-out', '%{json}', task['url']], capture_output=True, text=True, timeout=70)
         try:
             detail = json.loads(result.stdout)
@@ -94,11 +97,11 @@ def main():
         results = list(pool.map(download, tasks))
     with ThreadPoolExecutor(max_workers=4) as pool:
         dns = list(pool.map(dns_probe, ('223.5.5.5', '119.29.29.29', '1.1.1.1', '8.8.8.8')))
-    report = {'epoch': time.time(), 'github_run_id': __import__('os').environ.get('GITHUB_RUN_ID'),
+    report = {'epoch': time.time(), 'github_run_id': os.environ.get('GITHUB_RUN_ID'),
         'network_observation': location, 'downloads': results, 'dns': dns,
         'scope': 'GitHub-hosted Linux IPv4 transport and file integrity. Does not prove overseas phone Wi-Fi, Bionic resolver, IPv6-only, or every country.'}
     OUTPUT.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
-    Path(__import__('os').environ['GITHUB_STEP_SUMMARY']).write_text(
+    Path(os.environ['GITHUB_STEP_SUMMARY']).write_text(
         '# AERA network probe\n\n' + json.dumps(location) + '\n\n' +
         '\n'.join(f'- {r["source"]} / {r["file"]}: verified={r["verified"]}, HTTP {r["transport"].get("http_code")}' for r in results) + '\n',
         encoding='utf-8')
