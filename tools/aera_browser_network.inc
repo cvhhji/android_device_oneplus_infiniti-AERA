@@ -97,7 +97,7 @@ bool BrowserNetworkTick(WebScene *s, bool visible) {
     // Probe only the public origin, excluding paths, tokens and cookies.
     const std::string public_url = "https://" + host + "/";
     const auto primary = aera_network::PrimaryAddresses(
-        url, runtime + "/etc/resolv.conf", cancelled);
+        url, aera_network::BrowserResolverPath(runtime), cancelled);
     const auto candidates = aera_network::Candidates(url, cancelled);
     const auto primary_address = [&primary](const aera_network::Address &candidate) {
       return std::any_of(primary.begin(), primary.end(), [&](const auto &entry) {

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <!-- Keep the reviewed recovery core and its new device dependencies together. -->
+  <extend-project name="android_bootable_recovery" path="bootable/recovery" revision="e98c1d853976f4d960e12089687dd2223c04c11d" upstream="aera-16.0" />
+  <extend-project name="android_vendor_recovery" path="vendor/recovery" revision="6eb0b571f26032161a9836e37025a14cbf0ee16d" upstream="aera-16.0" />
+  <extend-project name="android_bionic" path="bionic" revision="33fcbd9974be3b3b2899a484f8c0cb8dfa2d5e82" upstream="aera-16.0" />
+  <extend-project name="android_external_libfuse" path="external/libfuse" revision="d367922df665acde347e3824d22cbde2aedf4139" upstream="aera-16.0" />
+  <extend-project name="android_external_aera_qrtr" path="external/aera_qrtr" revision="ab243b82023ad2b8d5d12e22a6492da01167bca3" upstream="aera-16.0" />
+  <extend-project name="android_external_aera_rmtfs" path="external/aera_rmtfs" revision="e94ab29abeb8d4a944938f269a77cf5bcda7f79f" upstream="aera-16.0" />
+  <extend-project name="android_external_aera_tqftpserv" path="external/aera_tqftpserv" revision="d9fec51d1a2e0ee277a5a5a8743591467849cc6e" upstream="aera-16.0" />
+</manifest>

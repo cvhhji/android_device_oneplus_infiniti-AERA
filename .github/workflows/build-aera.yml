@@ -80,7 +80,11 @@ jobs:
           cd "$AERA_ROOT"
           "$HOME/bin/repo" init --depth=1 \
             -u https://github.com/AERA-Recovery/android_manifest.git \
-            -b aera-16.0
+            -b aabd43b2478f3e6dcd0330e7cd5839746c0bf9a7
+
+          mkdir -p .repo/local_manifests
+          cp "$GITHUB_WORKSPACE/tools/aera-upstream-lock.xml" \
+            .repo/local_manifests/infiniti-upstream-lock.xml
 
           # AERA manifest sources are public, so use HTTPS instead of requiring
           # an SSH private key on the hosted runner.
@@ -97,7 +101,29 @@ jobs:
           sed -i '\#<remove-project path="external/curl"#d' .repo/manifests/remove-minimal.xml
 
           "$HOME/bin/repo" sync -c --force-sync --no-clone-bundle --no-tags -j"$(nproc)"
+          python3 - "$AERA_ROOT" "$GITHUB_WORKSPACE/tools/aera-upstream-lock.xml" <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+          import xml.etree.ElementTree as ET
+          root = Path(sys.argv[1])
+          for project in ET.parse(sys.argv[2]).getroot().findall("extend-project"):
+              actual = subprocess.check_output([
+                  "git", "-C", str(root / project.attrib["path"]), "rev-parse", "HEAD"
+              ], text=True).strip()
+              if actual != project.attrib["revision"]:
+                  raise SystemExit("Upstream source revision mismatch: " + project.attrib["path"])
+              print(actual, project.attrib["path"], flush=True)
+          PY
+          "$HOME/bin/repo" manifest -r -o "$RUNNER_TEMP/aera-resolved-manifest.xml"
           df -h "$AERA_ROOT"
+
+      - name: Save exact upstream source revisions
+        uses: actions/upload-artifact@v7
+        with:
+          name: AERA-upstream-${{ github.sha }}
+          path: ${{ runner.temp }}/aera-resolved-manifest.xml
+          retention-days: 14
 
       - name: Overlay OnePlus 15 infiniti device tree
         run: |
@@ -124,6 +150,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/tools/patch_aera_integrations.py" \
             "$AERA_ROOT" "$GITHUB_REPOSITORY" "$GITEE_REPOSITORY"
           python3 "$GITHUB_WORKSPACE/tools/patch_aera_https.py" "$AERA_ROOT"
+          python3 "$GITHUB_WORKSPACE/tools/patch_aera_fontsource_https.py" "$AERA_ROOT"
           python3 "$GITHUB_WORKSPACE/tools/patch_aera_browser_fonts.py" "$AERA_ROOT"
           python3 "$GITHUB_WORKSPACE/tools/patch_aera_network_fallback.py" "$AERA_ROOT"
           python3 "$GITHUB_WORKSPACE/tools/patch_aera_rpc_channels.py" "$AERA_ROOT"
@@ -273,6 +300,7 @@ jobs:
                   "境外网络连接失败或加载停滞时尝试备用 DNS 地址，目前支持 GitHub 及相关下载、静态资源域名和部分境外网络地址，继续校验域名和证书。",
                   "优化备用地址探测，避免慢速网页误判；限制重试次数，缓存最长 5 分钟。",
                   "浏览器任务上限由 192 调至 512，内存上限保持 1536 MiB，缓解网页子进程创建失败。",
+                  "增加原生蜂窝数据支持，可选择 SIM、验证 SIM PIN，并查看信号和网络制式；Wi-Fi 不可用时可切换至移动网络。",
                   "2.4 GHz 网络稳定性仍待修复，当前建议使用已验证的 5 GHz 网络。",
               ],
           }

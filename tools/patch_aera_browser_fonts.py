@@ -62,10 +62,19 @@ static void PrepareBrowserFontMount(int root) {
   if (browser)
     Check(minijail_bind(jail, "/twres/fonts", "/usr/share/fonts/recovery", 0),
           "read-only multilingual recovery fonts");''')
-    text = once(text,
-                '  const char *keys[] = {"net.wlan0.dns1", "net.wlan0.dns2", "net.dns1", "net.dns2"};',
-                '  const char *keys[] = {"net.wlan0.dns1", "net.wlan0.dns2",\n'
-                '                        "net.dns1", "net.dns2", "net.dns3", "net.dns4"};')
+    # New upstream shares the current RAM resolver with the jail so switching
+    # between Wi-Fi and mobile data does not leave stale WLAN DNS first.
+    resolver_anchors = (
+        '  const char *keys[] = {"net.dns1", "net.dns2"};',
+        '  const char *keys[] = {"net.wlan0.dns1", "net.wlan0.dns2", "net.dns1", "net.dns2"};',
+    )
+    for anchor in resolver_anchors:
+        if anchor in text:
+            text = once(text, anchor,
+                        '  const char *keys[] = {"net.dns1", "net.dns2", "net.dns3", "net.dns4"};')
+            break
+    else:
+        raise SystemExit("Browser resolver integration changed; review before applying")
     ui = once(ui, "  bool persistent = false;", '''  bool persistent = false;
   bool session_was_started = false;
   unsigned restart_attempts = 0;

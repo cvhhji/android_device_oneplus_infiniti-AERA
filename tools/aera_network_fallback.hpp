@@ -18,6 +18,7 @@
 #include <sys/random.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/vfs.h>
 #include <time.h>
 #include <unistd.h>
 #include <vector>
@@ -213,6 +214,17 @@ inline std::vector<Address> Query(const std::string &host, const std::string &se
   }
   close(fd);
   return result;
+}
+inline std::string BrowserResolverPath(const std::string &runtime) {
+  struct stat info{};
+  struct statfs filesystem{};
+  // Match the upstream jail's live read-only resolver mount. Otherwise use
+  // the resolver file created inside this private runtime at launch.
+  if (!lstat("/etc/resolv.conf", &info) && S_ISREG(info.st_mode) &&
+      info.st_uid == 0 && !statfs("/etc/resolv.conf", &filesystem) &&
+      (filesystem.f_type == 0x01021994 || filesystem.f_type == 0x858458f6))
+    return "/etc/resolv.conf";
+  return runtime + "/etc/resolv.conf";
 }
 inline std::vector<Address> PrimaryAddresses(const std::string &url,
     const std::string &resolver_file,
