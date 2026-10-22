@@ -51,3 +51,36 @@ ssize_t __wrap_pwrite(int fd, const void *buf, size_t count, off_t offset)
     errno = EROFS;
     return -1;
 }
+
+// Bionic FORTIFY redirects ordinary calls to these checked entry points.
+// Route them through the same policy instead of leaving a second open path.
+int __wrap___open_2(const char *path, int flags)
+{
+    return __wrap_open(path, flags);
+}
+
+int __wrap___openat_2(int dirfd, const char *path, int flags)
+{
+    return __wrap_openat(dirfd, path, flags);
+}
+
+ssize_t __wrap_pwrite64(int fd, const void *buf, size_t count, off64_t offset)
+{
+    (void)fd; (void)buf; (void)count; (void)offset;
+    errno = EROFS;
+    return -1;
+}
+
+ssize_t __wrap___pwrite_chk(int fd, const void *buf, size_t count, off_t offset,
+                          size_t buffer_size)
+{
+    (void)buffer_size;
+    return __wrap_pwrite(fd, buf, count, offset);
+}
+
+ssize_t __wrap___pwrite64_chk(int fd, const void *buf, size_t count, off64_t offset,
+                            size_t buffer_size)
+{
+    (void)buffer_size;
+    return __wrap_pwrite64(fd, buf, count, offset);
+}

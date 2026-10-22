@@ -24,7 +24,10 @@ cc_binary {
     static_libs: ["libaera_qrtr"],
     header_libs: ["aera_rmtfs_headers"],
     cflags: ["-D_GNU_SOURCE", "-Wno-unused-parameter"],
-    ldflags: ["-Wl,--wrap=open,--wrap=openat,--wrap=pwrite,--wrap=storage_init"],
+    ldflags: [
+        "-Wl,--wrap=open,--wrap=openat,--wrap=pwrite,--wrap=pwrite64,--wrap=storage_init",
+        "-Wl,--wrap=__open_2,--wrap=__openat_2,--wrap=__pwrite_chk,--wrap=__pwrite64_chk",
+    ],
 }
 
 cc_binary {

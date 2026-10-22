@@ -1,0 +1,798 @@
+{
+  "Mobile data": {
+    "zh_CN": "移动网络",
+    "zh_TW": "行動網路"
+  },
+  "Mobile data is off": {
+    "zh_CN": "移动网络已关闭",
+    "zh_TW": "行動網路已關閉"
+  },
+  "Automatic": {
+    "zh_CN": "自动",
+    "zh_TW": "自動"
+  },
+  "Default": {
+    "zh_CN": "默认",
+    "zh_TW": "預設"
+  },
+  "Connecting...": {
+    "zh_CN": "正在连接…",
+    "zh_TW": "正在連線…"
+  },
+  "Loading": {
+    "zh_CN": "正在加载",
+    "zh_TW": "正在載入"
+  },
+  "Signal": {
+    "zh_CN": "信号",
+    "zh_TW": "訊號"
+  },
+  "Signal unavailable": {
+    "zh_CN": "暂无信号信息",
+    "zh_TW": "暫無訊號資訊"
+  },
+  "Access point name": {
+    "zh_CN": "接入点名称",
+    "zh_TW": "接入點名稱"
+  },
+  "ACCESS POINT NAME": {
+    "zh_CN": "接入点名称",
+    "zh_TW": "接入點名稱"
+  },
+  "Auto-connect on boot": {
+    "zh_CN": "开机自动连接",
+    "zh_TW": "開機自動連線"
+  },
+  "Connect when recovery starts": {
+    "zh_CN": "进入 recovery 后自动连接",
+    "zh_TW": "進入 recovery 後自動連線"
+  },
+  "DATA SIM": {
+    "zh_CN": "上网 SIM 卡",
+    "zh_TW": "上網 SIM 卡"
+  },
+  "SIM %d": {
+    "zh_CN": "SIM 卡 %d",
+    "zh_TW": "SIM 卡 %d"
+  },
+  "SIM 1": {
+    "zh_CN": "SIM 卡 1",
+    "zh_TW": "SIM 卡 1"
+  },
+  "SIM 2": {
+    "zh_CN": "SIM 卡 2",
+    "zh_TW": "SIM 卡 2"
+  },
+  "CONNECTION": {
+    "zh_CN": "连接信息",
+    "zh_TW": "連線資訊"
+  },
+  "Public IPv4": {
+    "zh_CN": "公网 IPv4",
+    "zh_TW": "公網 IPv4"
+  },
+  "Reading modem status": {
+    "zh_CN": "正在读取调制解调器状态",
+    "zh_TW": "正在讀取調變解調器狀態"
+  },
+  "SIM PIN verification failed": {
+    "zh_CN": "SIM 卡 PIN 验证失败",
+    "zh_TW": "SIM 卡 PIN 驗證失敗"
+  },
+  "PIN result unknown. Check SIM status before trying again": {
+    "zh_CN": "无法确认 PIN 验证结果，请检查 SIM 卡状态后重试",
+    "zh_TW": "無法確認 PIN 驗證結果，請檢查 SIM 卡狀態後重試"
+  },
+  "Enter a 4 to 8 digit PIN for the selected SIM": {
+    "zh_CN": "请输入所选 SIM 卡的 4 至 8 位 PIN 码",
+    "zh_TW": "請輸入所選 SIM 卡的 4 至 8 位 PIN 碼"
+  },
+  "This SIM cannot be identified. Enter its PIN without remembering it": {
+    "zh_CN": "无法识别此 SIM 卡，请输入 PIN 码并取消记住 PIN",
+    "zh_TW": "無法識別此 SIM 卡，請輸入 PIN 碼並取消記住 PIN"
+  },
+  "Wait for the current SIM operation to finish": {
+    "zh_CN": "请等待当前 SIM 卡操作完成",
+    "zh_TW": "請等待當前 SIM 卡操作完成"
+  },
+  "Could not forget SIM PIN": {
+    "zh_CN": "无法删除已保存的 SIM 卡 PIN",
+    "zh_TW": "無法刪除已儲存的 SIM 卡 PIN"
+  },
+  "PIN request timed out. Check SIM status before trying again": {
+    "zh_CN": "PIN 验证请求超时，请检查 SIM 卡状态后重试",
+    "zh_TW": "PIN 驗證請求超時，請檢查 SIM 卡狀態後重試"
+  },
+  "SIM state changed. Check the selected SIM and try again": {
+    "zh_CN": "SIM 卡状态已变化，请检查所选 SIM 卡后重试",
+    "zh_TW": "SIM 卡狀態已變化，請檢查所選 SIM 卡後重試"
+  },
+  "SIM requires PUK. Unlock it in Android": {
+    "zh_CN": "SIM 卡需要 PUK 码，请进入 Android 解锁",
+    "zh_TW": "SIM 卡需要 PUK 碼，請進入 Android 解鎖"
+  },
+  "Connection cancelled": {
+    "zh_CN": "已取消连接",
+    "zh_TW": "已取消連線"
+  },
+  "No supported Qualcomm modem control was found": {
+    "zh_CN": "未找到支持的高通调制解调器控制接口",
+    "zh_TW": "未找到支援的高通調變解調器控制介面"
+  },
+  "The modem RAM-storage interface is unavailable": {
+    "zh_CN": "调制解调器内存存储接口不可用",
+    "zh_TW": "調變解調器記憶體儲存介面不可用"
+  },
+  "Mobile data helpers are not installed": {
+    "zh_CN": "未安装移动网络辅助组件",
+    "zh_TW": "未安裝行動網路輔助元件"
+  },
+  "The kernel has no QRTR modem transport": {
+    "zh_CN": "内核不支持 QRTR 调制解调器通信",
+    "zh_TW": "核心不支援 QRTR 調變解調器通訊"
+  },
+  "Network interface configuration failed": {
+    "zh_CN": "网络接口配置失败",
+    "zh_TW": "網路介面配置失敗"
+  },
+  "Missing or incompatible kernel module: %s": {
+    "zh_CN": "内核模块缺失或不兼容：%s",
+    "zh_TW": "核心模組缺失或不相容：%s"
+  },
+  "The kernel IPA data interface is unsupported": {
+    "zh_CN": "内核不支持 IPA 数据接口",
+    "zh_TW": "核心不支援 IPA 資料介面"
+  },
+  "Mobile network interface is already in use": {
+    "zh_CN": "移动网络接口已被占用",
+    "zh_TW": "行動網路介面已被佔用"
+  },
+  "Cannot open route control": {
+    "zh_CN": "无法打开路由控制接口",
+    "zh_TW": "無法開啟路由控制介面"
+  },
+  "Cannot bind route control": {
+    "zh_CN": "无法绑定路由控制接口",
+    "zh_TW": "無法繫結路由控制介面"
+  },
+  "Cannot create mobile network interface": {
+    "zh_CN": "无法创建移动网络接口",
+    "zh_TW": "無法建立行動網路介面"
+  },
+  "Route control timed out": {
+    "zh_CN": "路由控制请求超时",
+    "zh_TW": "路由控制請求超時"
+  },
+  "Invalid route response": {
+    "zh_CN": "路由响应无效",
+    "zh_TW": "路由響應無效"
+  },
+  "The kernel rejected the rmnet link": {
+    "zh_CN": "内核拒绝创建 rmnet 链路",
+    "zh_TW": "核心拒絕建立 rmnet 鏈路"
+  },
+  "Missing IPv4 netmask": {
+    "zh_CN": "缺少 IPv4 子网掩码",
+    "zh_TW": "缺少 IPv4 子網掩碼"
+  },
+  "Invalid IPv4 netmask": {
+    "zh_CN": "IPv4 子网掩码无效",
+    "zh_TW": "IPv4 子網掩碼無效"
+  },
+  "The selected data SIM has no provisioning application": {
+    "zh_CN": "所选上网 SIM 卡没有可用的配置应用",
+    "zh_TW": "所選上網 SIM 卡沒有可用的配置應用"
+  },
+  "Unsupported SIM slot": {
+    "zh_CN": "不支持此 SIM 卡槽",
+    "zh_TW": "不支援此 SIM 卡槽"
+  },
+  "Selected SIM is not present": {
+    "zh_CN": "未检测到所选 SIM 卡",
+    "zh_TW": "未檢測到所選 SIM 卡"
+  },
+  "SIM initialization timed out": {
+    "zh_CN": "SIM 卡初始化超时",
+    "zh_TW": "SIM 卡初始化超時"
+  },
+  "SIM changed before PIN verification": {
+    "zh_CN": "验证 PIN 前 SIM 卡已变化",
+    "zh_TW": "驗證 PIN 前 SIM 卡已變化"
+  },
+  "Cannot start modem helper": {
+    "zh_CN": "无法启动调制解调器辅助进程",
+    "zh_TW": "無法啟動調變解調器輔助程序"
+  },
+  "A modem storage helper stopped unexpectedly": {
+    "zh_CN": "调制解调器存储辅助进程意外退出",
+    "zh_TW": "調變解調器儲存輔助程序意外退出"
+  },
+  "Invalid boot slot": {
+    "zh_CN": "启动槽位无效",
+    "zh_TW": "啟動槽位無效"
+  },
+  "Cannot mount modem firmware read-only": {
+    "zh_CN": "无法以只读方式挂载调制解调器固件",
+    "zh_TW": "無法以只讀方式掛載調變解調器韌體"
+  },
+  "Modem firmware is incomplete": {
+    "zh_CN": "调制解调器固件不完整",
+    "zh_TW": "調變解調器韌體不完整"
+  },
+  "Cannot configure the modem firmware lookup path": {
+    "zh_CN": "无法设置调制解调器固件查找路径",
+    "zh_TW": "無法設定調變解調器韌體查詢路徑"
+  },
+  "Required modem service %s is unavailable": {
+    "zh_CN": "所需调制解调器服务 %s 不可用",
+    "zh_TW": "所需調變解調器服務 %s 不可用"
+  },
+  "Unsupported recovery resolver file": {
+    "zh_CN": "不支持当前 recovery 的 DNS 配置文件",
+    "zh_TW": "不支援當前 recovery 的 DNS 配置檔案"
+  },
+  "Resolver configuration is not in volatile recovery memory": {
+    "zh_CN": "DNS 配置不在 recovery 的临时内存中",
+    "zh_TW": "DNS 配置不在 recovery 的臨時記憶體中"
+  },
+  "Cannot configure mobile DNS": {
+    "zh_CN": "无法设置移动网络 DNS",
+    "zh_TW": "無法設定行動網路 DNS"
+  },
+  "Finish the current storage operation first": {
+    "zh_CN": "请先完成当前存储操作",
+    "zh_TW": "請先完成當前儲存操作"
+  },
+  "The modem is already running outside AERA mobile data; reboot recovery first": {
+    "zh_CN": "调制解调器已被其他服务启动，请先重启 recovery",
+    "zh_TW": "調變解調器已被其他服務啟動，請先重啟 recovery"
+  },
+  "Preparing the modem": {
+    "zh_CN": "正在准备调制解调器",
+    "zh_TW": "正在準備調變解調器"
+  },
+  "Modem storage services are not ready": {
+    "zh_CN": "调制解调器存储服务尚未就绪",
+    "zh_TW": "調變解調器儲存服務尚未就緒"
+  },
+  "Cannot start the modem": {
+    "zh_CN": "无法启动调制解调器",
+    "zh_TW": "無法啟動調變解調器"
+  },
+  "Waiting for mobile network registration": {
+    "zh_CN": "正在等待移动网络注册",
+    "zh_TW": "正在等待行動網路註冊"
+  },
+  "The modem did not expose its data services": {
+    "zh_CN": "调制解调器未提供数据服务",
+    "zh_TW": "調變解調器未提供資料服務"
+  },
+  "The modem did not select the requested data SIM": {
+    "zh_CN": "调制解调器未切换到所选上网 SIM 卡",
+    "zh_TW": "調變解調器未切換到所選上網 SIM 卡"
+  },
+  "SIM is not registered for data. Check PIN, coverage and SIM selection": {
+    "zh_CN": "SIM 卡尚未注册数据服务，请检查 PIN、信号覆盖和上网卡选择",
+    "zh_TW": "SIM 卡尚未註冊資料服務，請檢查 PIN、訊號覆蓋和上網絡卡選擇"
+  },
+  "Unsupported modem data format": {
+    "zh_CN": "不支持此调制解调器数据格式",
+    "zh_TW": "不支援此調變解調器資料格式"
+  },
+  "Enter the access point name (APN) supplied by your carrier": {
+    "zh_CN": "请输入运营商提供的接入点名称（APN）",
+    "zh_TW": "請輸入運營商提供的接入點名稱（APN）"
+  },
+  "Establishing the data connection": {
+    "zh_CN": "正在建立数据连接",
+    "zh_TW": "正在建立資料連線"
+  },
+  "The modem returned no data session handle": {
+    "zh_CN": "调制解调器未返回数据会话句柄",
+    "zh_TW": "調變解調器未返回資料會話控制代碼"
+  },
+  "The network returned incomplete IPv4 settings": {
+    "zh_CN": "网络返回的 IPv4 配置不完整",
+    "zh_TW": "網路返回的 IPv4 配置不完整"
+  },
+  "Invalid modem MTU": {
+    "zh_CN": "调制解调器 MTU 无效",
+    "zh_TW": "調變解調器 MTU 無效"
+  },
+  "Mobile data connected": {
+    "zh_CN": "移动网络已连接",
+    "zh_TW": "行動網路已連線"
+  },
+  "The modem stopped": {
+    "zh_CN": "调制解调器已停止",
+    "zh_TW": "調變解調器已停止"
+  },
+  "The mobile network disconnected": {
+    "zh_CN": "移动网络已断开",
+    "zh_TW": "行動網路已斷開"
+  },
+  "Modem shutdown failed. Reboot recovery before flashing": {
+    "zh_CN": "调制解调器关闭失败，请重启 recovery 后再刷写",
+    "zh_TW": "調變解調器關閉失敗，請重啟 recovery 後再刷寫"
+  },
+  "Cannot release modem firmware mount": {
+    "zh_CN": "无法卸载调制解调器固件",
+    "zh_TW": "無法解除安裝調變解調器韌體"
+  },
+  "Disconnecting mobile data": {
+    "zh_CN": "正在断开移动网络",
+    "zh_TW": "正在斷開行動網路"
+  },
+  "Mobile connection lost. Retrying in %s seconds": {
+    "zh_CN": "移动网络连接已断开，将在 %s 秒后重试",
+    "zh_TW": "行動網路連線已斷開，將在 %s 秒後重試"
+  },
+  "Modem is still stopping. Reboot before flashing": {
+    "zh_CN": "调制解调器仍在停止中，请重启后再刷写",
+    "zh_TW": "調變解調器仍在停止中，請重啟後再刷寫"
+  },
+  "Invalid APN or SIM selection": {
+    "zh_CN": "APN 或 SIM 卡选择无效",
+    "zh_TW": "APN 或 SIM 卡選擇無效"
+  },
+  "Modem feature record is not terminated": {
+    "zh_CN": "调制解调器功能记录缺少结束标记",
+    "zh_TW": "調變解調器功能記錄缺少結束標記"
+  },
+  "Modem feature record is invalid": {
+    "zh_CN": "调制解调器功能记录无效",
+    "zh_TW": "調變解調器功能記錄無效"
+  },
+  "Unexpected modem feature record": {
+    "zh_CN": "调制解调器功能记录不符合预期",
+    "zh_TW": "調變解調器功能記錄不符合預期"
+  },
+  "Modem feature record is incomplete": {
+    "zh_CN": "调制解调器功能记录不完整",
+    "zh_TW": "調變解調器功能記錄不完整"
+  },
+  "Cannot read the device modem feature record": {
+    "zh_CN": "无法读取设备调制解调器功能记录",
+    "zh_TW": "無法讀取裝置調變解調器功能記錄"
+  },
+  "Modem feature-map interface is unavailable": {
+    "zh_CN": "调制解调器功能映射接口不可用",
+    "zh_TW": "調變解調器功能對映介面不可用"
+  },
+  "Cannot initialize the modem feature map": {
+    "zh_CN": "无法初始化调制解调器功能映射",
+    "zh_TW": "無法初始化調變解調器功能對映"
+  },
+  "QMI error %s": {
+    "zh_CN": "QMI 错误 %s",
+    "zh_TW": "QMI 錯誤 %s"
+  },
+  "QMI error %s [call reason %s]": {
+    "zh_CN": "QMI 错误 %s［呼叫原因 %s］",
+    "zh_TW": "QMI 錯誤 %s［呼叫原因 %s］"
+  },
+  "QRTR transport is unavailable": {
+    "zh_CN": "QRTR 通信接口不可用",
+    "zh_TW": "QRTR 通訊介面不可用"
+  },
+  "Modem transport send failed: %s": {
+    "zh_CN": "调制解调器通信发送失败：%s",
+    "zh_TW": "調變解調器通訊傳送失敗：%s"
+  },
+  "Modem transport poll failed": {
+    "zh_CN": "调制解调器通信轮询失败",
+    "zh_TW": "調變解調器通訊輪詢失敗"
+  },
+  "Modem transport receive failed": {
+    "zh_CN": "调制解调器通信接收失败",
+    "zh_TW": "調變解調器通訊接收失敗"
+  },
+  "Modem response timed out": {
+    "zh_CN": "调制解调器响应超时",
+    "zh_TW": "調變解調器響應超時"
+  },
+  "Cannot identify local QRTR node": {
+    "zh_CN": "无法识别本地 QRTR 节点",
+    "zh_TW": "無法識別本地 QRTR 節點"
+  },
+  "QMI request too large": {
+    "zh_CN": "QMI 请求过大",
+    "zh_TW": "QMI 請求過大"
+  },
+  "Invalid QMI response length": {
+    "zh_CN": "QMI 响应长度无效",
+    "zh_TW": "QMI 響應長度無效"
+  },
+  "Truncated QMI header": {
+    "zh_CN": "QMI 响应头不完整",
+    "zh_TW": "QMI 響應頭不完整"
+  },
+  "Invalid QMI field": {
+    "zh_CN": "QMI 字段无效",
+    "zh_TW": "QMI 欄位無效"
+  },
+  "Missing QMI operation result": {
+    "zh_CN": "缺少 QMI 操作结果",
+    "zh_TW": "缺少 QMI 操作結果"
+  },
+  "Truncated SIM card status": {
+    "zh_CN": "SIM 卡状态数据不完整",
+    "zh_TW": "SIM 卡狀態資料不完整"
+  },
+  "Truncated SIM application status": {
+    "zh_CN": "SIM 卡应用状态数据不完整",
+    "zh_TW": "SIM 卡應用狀態資料不完整"
+  },
+  "Missing physical SIM status": {
+    "zh_CN": "缺少实体 SIM 卡状态",
+    "zh_TW": "缺少實體 SIM 卡狀態"
+  },
+  "Truncated physical SIM status": {
+    "zh_CN": "实体 SIM 卡状态数据不完整",
+    "zh_TW": "實體 SIM 卡狀態資料不完整"
+  },
+  "Truncated SIM identifier": {
+    "zh_CN": "SIM 卡标识数据不完整",
+    "zh_TW": "SIM 卡標識資料不完整"
+  },
+  "This device has no mobile data provider": {
+    "zh_CN": "此设备未提供移动网络支持",
+    "zh_TW": "此裝置未提供行動網路支援"
+  },
+  "Mobile data is disabled in this build": {
+    "zh_CN": "此版本未启用移动网络",
+    "zh_TW": "此版本未啟用行動網路"
+  },
+  "Unlock internal storage before enabling mobile data": {
+    "zh_CN": "请先解锁内部存储，再启用移动网络",
+    "zh_TW": "請先解鎖內部儲存，再啟用行動網路"
+  },
+  "Mobile data service is not ready yet": {
+    "zh_CN": "移动网络服务尚未就绪",
+    "zh_TW": "行動網路服務尚未就緒"
+  },
+  "Could not request mobile data disconnect": {
+    "zh_CN": "无法请求断开移动网络",
+    "zh_TW": "無法請求斷開行動網路"
+  },
+  "Unlock internal storage before saving mobile data settings": {
+    "zh_CN": "请先解锁内部存储，再保存移动网络设置",
+    "zh_TW": "請先解鎖內部儲存，再儲存行動網路設定"
+  },
+  "Could not save mobile data settings": {
+    "zh_CN": "无法保存移动网络设置",
+    "zh_TW": "無法儲存行動網路設定"
+  },
+  "Network": {
+    "zh_CN": "网络",
+    "zh_TW": "網路"
+  },
+  "Preferences": {
+    "zh_CN": "设置",
+    "zh_TW": "設定"
+  },
+  "Check updates": {
+    "zh_CN": "检查更新",
+    "zh_TW": "檢查更新"
+  },
+  "Wi-Fi Mirror": {
+    "zh_CN": "Wi-Fi 投屏",
+    "zh_TW": "Wi-Fi 投屏"
+  },
+  "USB Mirror": {
+    "zh_CN": "USB 投屏",
+    "zh_TW": "USB 投屏"
+  },
+  "24-hour clock": {
+    "zh_CN": "24 小时制",
+    "zh_TW": "24 小時制"
+  },
+  "Choose clock colour": {
+    "zh_CN": "选择时钟颜色",
+    "zh_TW": "選擇時鐘顏色"
+  },
+  "Connect AERA to a network, then try Refresh store again.": {
+    "zh_CN": "请连接网络后重新刷新商店。",
+    "zh_TW": "請連線網路後重新重新整理商店。"
+  },
+  "Connect to a network and refresh the store.": {
+    "zh_CN": "请连接网络并刷新商店。",
+    "zh_TW": "請連線網路並重新整理商店。"
+  },
+  "Connect to a network to check for a newer build.": {
+    "zh_CN": "请连接网络后检查更新。",
+    "zh_TW": "請連線網路後檢查更新。"
+  },
+  "Search this service": {
+    "zh_CN": "搜索此服务",
+    "zh_TW": "搜尋此服務"
+  },
+  "Full information": {
+    "zh_CN": "完整信息",
+    "zh_TW": "完整資訊"
+  },
+  "Open in your browser": {
+    "zh_CN": "在浏览器中打开",
+    "zh_TW": "在瀏覽器中開啟"
+  },
+  "Run on your computer": {
+    "zh_CN": "在电脑上运行",
+    "zh_TW": "在電腦上執行"
+  },
+  "Ready to enable through paired ADB": {
+    "zh_CN": "可通过已配对的 ADB 启用",
+    "zh_TW": "可透過已配對的 ADB 啟用"
+  },
+  "Could not allocate desktop surface.": {
+    "zh_CN": "无法分配桌面画面缓冲区。",
+    "zh_TW": "無法分配桌面畫面緩衝區。"
+  },
+  "Desktop request unavailable or not permitted.": {
+    "zh_CN": "桌面请求不可用或未获允许。",
+    "zh_TW": "桌面請求不可用或未獲允許。"
+  },
+  "Could not read the private key.": {
+    "zh_CN": "无法读取私钥。",
+    "zh_TW": "無法讀取私鑰。"
+  },
+  "The downloaded ZIP is unavailable": {
+    "zh_CN": "下载的 ZIP 文件不可用",
+    "zh_TW": "下載的 ZIP 檔案不可用"
+  },
+  "Active slot: %s": {
+    "zh_CN": "当前槽位：%s",
+    "zh_TW": "當前槽位：%s"
+  },
+  "%llu bytes": {
+    "zh_CN": "%llu 字节",
+    "zh_TW": "%llu 位元組"
+  },
+  "Could not open USB partition.": {
+    "zh_CN": "无法打开 USB 分区。",
+    "zh_TW": "無法開啟 USB 分割槽。"
+  },
+  "This device cannot safely identify the USB attachment. Formatting is unavailable.": {
+    "zh_CN": "此设备无法安全识别 USB 存储设备，暂不支持格式化。",
+    "zh_TW": "此裝置無法安全識別 USB 儲存裝置，暫不支援格式化。"
+  },
+  "No supported USB formatting tools are available.": {
+    "zh_CN": "没有可用的 USB 格式化工具。",
+    "zh_TW": "沒有可用的 USB 格式化工具。"
+  },
+  "All files on this USB partition will be permanently erased. This cannot be undone.": {
+    "zh_CN": "此 USB 分区内的所有文件都将被永久删除，且无法恢复。",
+    "zh_TW": "此 USB 分割槽內的所有檔案都將被永久刪除，且無法恢復。"
+  },
+  "Choose a filesystem. Formatting erases all files on this USB partition. Other partitions are not changed.": {
+    "zh_CN": "请选择文件系统。格式化将删除此 USB 分区内的所有文件，不影响其他分区。",
+    "zh_TW": "請選擇檔案系統。格式化將刪除此 USB 分割槽內的所有檔案，不影響其他分割槽。"
+  },
+  "FAT32 — files up to 4 GB": {
+    "zh_CN": "FAT32 — 单个文件最大 4 GB",
+    "zh_TW": "FAT32 — 單個檔案最大 4 GB"
+  },
+  "exFAT — large files": {
+    "zh_CN": "exFAT — 支持大文件",
+    "zh_TW": "exFAT — 支援大檔案"
+  },
+  "ext4 — Linux filesystem": {
+    "zh_CN": "ext4 — Linux 文件系统",
+    "zh_TW": "ext4 — Linux 檔案系統"
+  },
+  "Preparing USB format": {
+    "zh_CN": "正在准备格式化 USB",
+    "zh_TW": "正在準備格式化 USB"
+  },
+  "Reconnect the drive and select it again.": {
+    "zh_CN": "请重新连接存储设备并再次选择。",
+    "zh_TW": "請重新連線儲存裝置並再次選擇。"
+  },
+  "Swipe to format USB": {
+    "zh_CN": "滑动以格式化 USB",
+    "zh_TW": "滑動以格式化 USB"
+  },
+  "The selected USB partition is no longer connected.": {
+    "zh_CN": "所选 USB 分区已断开连接。",
+    "zh_TW": "所選 USB 分割槽已斷開連線。"
+  },
+  "Applied for this session, but settings storage could not be saved.": {
+    "zh_CN": "已在本次会话中生效，但无法保存设置。",
+    "zh_TW": "已在本次會話中生效，但無法儲存設定。"
+  },
+  "Settings storage could not be saved.": {
+    "zh_CN": "无法保存设置。",
+    "zh_TW": "無法儲存設定。"
+  },
+  "Log storage is not available.": {
+    "zh_CN": "日志存储不可用。",
+    "zh_TW": "日誌儲存不可用。"
+  },
+  "Could not save the developer settings report.": {
+    "zh_CN": "无法保存开发者设置报告。",
+    "zh_TW": "無法儲存開發者設定報告。"
+  },
+  "This recovery was built without network storage support.": {
+    "zh_CN": "此 recovery 版本不支持网络存储。",
+    "zh_TW": "此 recovery 版本不支援網路儲存。"
+  },
+  "Choose either SFTP or SMB.": {
+    "zh_CN": "请选择 SFTP 或 SMB。",
+    "zh_TW": "請選擇 SFTP 或 SMB。"
+  },
+  "A field is too long or contains a line break.": {
+    "zh_CN": "输入内容过长或包含换行。",
+    "zh_TW": "輸入內容過長或包含換行。"
+  },
+  "Port must be a number from 1 to 65535.": {
+    "zh_CN": "端口必须为 1 至 65535 之间的数字。",
+    "zh_TW": "埠必須為 1 至 65535 之間的數字。"
+  },
+  "Choose either no cache or /data write cache.": {
+    "zh_CN": "请选择不使用缓存或使用 /data 写入缓存。",
+    "zh_TW": "請選擇不使用快取或使用 /data 寫入快取。"
+  },
+  "Could not save the password to AERA's encrypted credential store.": {
+    "zh_CN": "无法将密码保存到 AERA 的加密凭据存储中。",
+    "zh_TW": "無法將密碼儲存到 AERA 的加密憑據儲存中。"
+  },
+  "Could not write the connection settings to recovery storage.": {
+    "zh_CN": "无法将连接设置写入 recovery 存储。",
+    "zh_TW": "無法將連線設定寫入 recovery 儲存。"
+  },
+  "Select an OpenSSH or PEM private key, not a public key or PuTTY PPK file.": {
+    "zh_CN": "请选择 OpenSSH 或 PEM 私钥，请勿选择公钥或 PuTTY PPK 文件。",
+    "zh_TW": "請選擇 OpenSSH 或 PEM 私鑰，請勿選擇公鑰或 PuTTY PPK 檔案。"
+  },
+  "Could not save the private key to AERA's encrypted credential store.": {
+    "zh_CN": "无法将私钥保存到 AERA 的加密凭据存储中。",
+    "zh_TW": "無法將私鑰儲存到 AERA 的加密憑據儲存中。"
+  },
+  "Open the plugin before requesting a recovery operation.": {
+    "zh_CN": "请先打开插件，再请求 recovery 操作。",
+    "zh_TW": "請先開啟外掛，再請求 recovery 操作。"
+  },
+  "Plugin sent an invalid back action": {
+    "zh_CN": "插件发送了无效的返回操作",
+    "zh_TW": "外掛傳送了無效的返回操作"
+  },
+  "Plugin sent an invalid metric update": {
+    "zh_CN": "插件发送了无效的状态更新",
+    "zh_TW": "外掛傳送了無效的狀態更新"
+  },
+  "Plugin stopped": {
+    "zh_CN": "插件已停止",
+    "zh_TW": "外掛已停止"
+  },
+  "Plugin view closed before approval.": {
+    "zh_CN": "确认前插件页面已关闭。",
+    "zh_TW": "確認前外掛頁面已關閉。"
+  },
+  "Background plugin limit reached or invalid request": {
+    "zh_CN": "后台插件数量已达上限，或请求无效",
+    "zh_TW": "後臺外掛數量已達上限，或請求無效"
+  },
+  "App Backup Vault operation failed: %s": {
+    "zh_CN": "应用备份操作失败：%s",
+    "zh_TW": "應用備份操作失敗：%s"
+  },
+  "App Backup Vault: %s": {
+    "zh_CN": "应用备份：%s",
+    "zh_TW": "應用備份：%s"
+  },
+  "NAS upload did not complete. Check the connection and retry the backup.": {
+    "zh_CN": "NAS 上传未完成，请检查连接后重新备份。",
+    "zh_TW": "NAS 上傳未完成，請檢查連線後重新備份。"
+  },
+  "Waiting for NAS upload to finish...": {
+    "zh_CN": "正在等待 NAS 上传完成…",
+    "zh_TW": "正在等待 NAS 上傳完成…"
+  },
+  "Source\n%s\n\nRestoring overwrites the selected partitions.": {
+    "zh_CN": "来源\n%s\n\n恢复将覆盖所选分区。",
+    "zh_TW": "來源\n%s\n\n恢復將覆蓋所選分割槽。"
+  },
+  "ksud will mark this module for removal. The change completes on reboot.": {
+    "zh_CN": "ksud 将标记此模块为待删除，重启后完成删除。",
+    "zh_TW": "ksud 將標記此模組為待刪除，重啟後完成刪除。"
+  },
+  "latin": {
+    "zh_CN": "拉丁文",
+    "zh_TW": "拉丁文"
+  },
+  "latin-ext": {
+    "zh_CN": "扩展拉丁文",
+    "zh_TW": "擴充套件拉丁文"
+  },
+  "cyrillic": {
+    "zh_CN": "西里尔文",
+    "zh_TW": "西里爾文"
+  },
+  "cyrillic-ext": {
+    "zh_CN": "扩展西里尔文",
+    "zh_TW": "擴充套件西里爾文"
+  },
+  "greek": {
+    "zh_CN": "希腊文",
+    "zh_TW": "希臘文"
+  },
+  "greek-ext": {
+    "zh_CN": "扩展希腊文",
+    "zh_TW": "擴充套件希臘文"
+  },
+  "arabic": {
+    "zh_CN": "阿拉伯文",
+    "zh_TW": "阿拉伯文"
+  },
+  "hebrew": {
+    "zh_CN": "希伯来文",
+    "zh_TW": "希伯來文"
+  },
+  "devanagari": {
+    "zh_CN": "天城文",
+    "zh_TW": "天城文"
+  },
+  "bengali": {
+    "zh_CN": "孟加拉文",
+    "zh_TW": "孟加拉文"
+  },
+  "thai": {
+    "zh_CN": "泰文",
+    "zh_TW": "泰文"
+  },
+  "vietnamese": {
+    "zh_CN": "越南文",
+    "zh_TW": "越南文"
+  },
+  "japanese": {
+    "zh_CN": "日文",
+    "zh_TW": "日文"
+  },
+  "korean": {
+    "zh_CN": "韩文",
+    "zh_TW": "韓文"
+  },
+  "chinese-simplified": {
+    "zh_CN": "简体中文",
+    "zh_TW": "簡體中文"
+  },
+  "chinese-traditional": {
+    "zh_CN": "繁体中文",
+    "zh_TW": "繁體中文"
+  },
+  "chinese": {
+    "zh_CN": "中文",
+    "zh_TW": "中文"
+  },
+  "Blue cannon": {
+    "zh_CN": "蓝方炮台",
+    "zh_TW": "藍方炮臺"
+  },
+  "Blue cannon wins!": {
+    "zh_CN": "蓝方获胜！",
+    "zh_TW": "藍方獲勝！"
+  },
+  "Red cannon": {
+    "zh_CN": "红方炮台",
+    "zh_TW": "紅方炮臺"
+  },
+  "Red cannon wins!": {
+    "zh_CN": "红方获胜！",
+    "zh_TW": "紅方獲勝！"
+  },
+  "Computer wins!": {
+    "zh_CN": "电脑获胜！",
+    "zh_TW": "電腦獲勝！"
+  },
+  "Next round": {
+    "zh_CN": "下一局",
+    "zh_TW": "下一局"
+  },
+  "Angle  %d deg": {
+    "zh_CN": "角度  %d 度",
+    "zh_TW": "角度  %d 度"
+  },
+  "- your turn": {
+    "zh_CN": "- 轮到你了",
+    "zh_TW": "- 輪到你了"
+  }
+}
