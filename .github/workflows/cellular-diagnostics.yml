@@ -1,0 +1,105 @@
+name: Build read-only cellular diagnostics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install ARM64 cross compiler
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends g++-aarch64-linux-gnu
+      - name: Build bounded read-only modem query tool
+        run: |
+          mkdir -p diagnostic
+          cat > diagnostic/radio.cpp <<'CPP'
+          // Only per-client subscription binding and bounded read-only queries.
+          // No mode preference, NV, profile, network-start or storage writes.
+          #include "mobile_data/qmi.hpp"
+          #include <cstdio>
+          #include <cstdlib>
+          #include <memory>
+          #include <thread>
+          using namespace aera::mobile;
+          static Endpoint Find(const std::vector<Endpoint> &all,uint32_t service,uint32_t node=UINT32_MAX) {
+            for(const auto &e:all)if(e.service==service&&(e.instance>>8)==0&&
+                (node==UINT32_MAX||e.node==node))return e;
+            throw std::runtime_error("Service unavailable");
+          }
+          static void Hex(const char *label,const Bytes &bytes,size_t limit=256) {
+            printf("%s=",label);
+            for(size_t i=0;i<std::min(limit,bytes.size());++i)printf("%02x",bytes[i]);
+            puts("");
+          }
+          template<class F> static void Query(const char *label,F action) {
+            try{action();}
+            catch(const QmiError &e){printf("%s.qmi_error=%u\n",label,e.code);}
+            catch(const std::exception &){printf("%s.unavailable=1\n",label);}
+          }
+          int main(int argc,char **argv) {
+            if(argc!=3||strlen(argv[1])!=1||(argv[1][0]!='1'&&argv[1][0]!='2'))return 2;
+            const int subscription=argv[1][0]-'0',samples=atoi(argv[2]);
+            if(samples<1||samples>60||geteuid()!=0)return 2;
+            try {
+              const auto endpoints=Discover();const auto endpoint=Find(endpoints,3);
+              QmiClient nas(endpoint);Bytes bind;Tlv(bind,1,{static_cast<uint8_t>(subscription-1)});
+              nas.Call(0x45,bind,4);
+              printf("subscription=%d\nread_only_queries=1\n",subscription);
+              Query("preference",[&]{
+                const auto v=nas.Call(0x34,{},4);
+                Hex("preference.mode",Field(v,0x11));
+                Hex("preference.order",Field(v,0x1c));
+                Hex("preference.disabled",Field(v,0x22));
+              });
+              Query("operator",[&]{
+                const auto v=nas.Call(0x24,{},4);const auto &plmn=Field(v,0x12);
+                if(plmn.size()<5||plmn[4]>plmn.size()-5)return;
+                Hex("operator.serving",Bytes(plmn.begin()+5,plmn.begin()+5+plmn[4]));
+                Bytes query;Tlv(query,1,Bytes(plmn.begin(),plmn.begin()+4));
+                const auto name=nas.Call(0x44,query,4);
+                Hex("operator.encoded",Field(name,0x10));
+              });
+              std::unique_ptr<QmiClient> dsd;
+              Query("dsd",[&]{dsd=std::make_unique<QmiClient>(Find(endpoints,42,endpoint.node));});
+              for(int i=0;i<samples;++i) {
+                printf("sample=%d\n",i);
+                Query("registration",[&]{
+                  const auto v=nas.Call(0x4d,{},3);
+                  Hex("lte.service",Field(v,0x14),3);Hex("lte.domain",Field(v,0x19),8);
+                  Hex("nr.service",Field(v,0x4a),3);Hex("nr.domain",Field(v,0x4b),8);
+                });
+                Query("rf",[&]{
+                  const auto v=nas.Call(0x31,{},3);const auto &bands=Field(v,0x11);
+                  if(!bands.empty()&&1u+7u*bands[0]<=bands.size()) {
+                    printf("rf.bands=");
+                    for(size_t j=0;j<bands[0];++j)printf("%s%u:%u",j?",":"",bands[1+7*j],U16(&bands[2+7*j]));
+                    puts("");
+                  }
+                });
+                if(dsd)Query("dsd",[&]{Hex("dsd.systems",Field(dsd->Call(0x24,{},3),0x10));});
+                fflush(stdout);
+                if(i+1<samples)std::this_thread::sleep_for(std::chrono::seconds(2));
+              }
+            }catch(const std::exception &){fputs("diagnostic unavailable\n",stderr);return 1;}
+            return 0;
+          }
+          CPP
+          aarch64-linux-gnu-g++ -std=c++17 -O2 -Wall -Wextra -Werror -static -pthread \
+            -I "$GITHUB_WORKSPACE" diagnostic/radio.cpp -o diagnostic/aera-radio-readonly
+          aarch64-linux-gnu-strip diagnostic/aera-radio-readonly
+          file diagnostic/aera-radio-readonly
+          printf '%s\n' "$GITHUB_SHA" > diagnostic/SOURCE_COMMIT
+          (cd diagnostic && sha256sum aera-radio-readonly SOURCE_COMMIT radio.cpp > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aera-radio-readonly-${{ github.sha }}
+          path: diagnostic/
+          if-no-files-found: error
+          retention-days: 7
