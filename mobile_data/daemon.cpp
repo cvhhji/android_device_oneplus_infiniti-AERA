@@ -3,6 +3,7 @@
 #include "qmi.hpp"
 #include "sim.hpp"
 #include "registration.hpp"
+#include "operator_name.hpp"
 #include "modem_features.hpp"
 #include <openssl/sha.h>
 #include <arpa/inet.h>
@@ -264,6 +265,11 @@ struct Session {
   std::mutex network_mutex;
   std::string network_error;
   std::string last_registration;
+  std::string last_radio_preference,last_data_bearer;
+  Clock::time_point next_preference_query{};
+  int radio_mode=0;
+  Bytes saved_radio_mode,saved_acquisition_order;
+  bool radio_policy_owned=false;
   unsigned registration_samples=0;
   uint32_t handle=0;
   std::map<unsigned,std::string> SimIdentities(QmiClient &uim) {
@@ -505,9 +511,7 @@ struct Session {
       std::lock_guard<std::mutex> lock(state_mutex);
       status["registration"]=evidence;status["registered"]=current.registered;
       status["technology"]=current.registered?current.technology:"";
-      const auto &operator_info=Field(serving,0x12);
-      if(operator_info.size()>=5&&operator_info[4]<=operator_info.size()-5)
-        status["operator"]=std::string(operator_info.begin()+5,operator_info.begin()+5+operator_info[4]);
+      status["operator"]=DecodeServingOperator(Field(serving,0x12));
       SaveLocked();
     }
     return current;
@@ -600,8 +604,116 @@ struct Session {
     if(apn.empty())throw std::runtime_error("Enter the access point name (APN) supplied by your carrier");
     return apn;
   }
+  void ApplyRadioMode(int requested) {
+    radio_mode=requested;
+    const auto preference=nas->Call(0x34,{},5,&cancel);
+    saved_radio_mode=Field(preference,0x11);saved_acquisition_order=Field(preference,0x1c);
+    const auto &disabled=Field(preference,0x22);
+    if(saved_radio_mode.size()!=2||saved_acquisition_order.empty()||
+        saved_acquisition_order[0]>16||1u+saved_acquisition_order[0]!=saved_acquisition_order.size()||
+        std::find(saved_acquisition_order.begin()+1,saved_acquisition_order.end(),12)==saved_acquisition_order.end()||
+        (disabled.size()==2&&(U16(disabled.data())&0x40)))
+      throw std::runtime_error("The modem cannot apply the requested 5G mode");
+    const uint16_t desired=radio_mode==1?0x40:static_cast<uint16_t>(U16(saved_radio_mode.data())|0x50);
+    Bytes mode;Put16(mode,desired);
+    Bytes order=saved_acquisition_order;
+    const auto nr=std::find(order.begin()+1,order.end(),12);
+    // NAS requires the complete original acquisition list, even in NR-only
+    // mode. Reorder it without removing LTE/legacy entries or changing bands.
+    std::rotate(order.begin()+1,nr,nr+1);
+    if(mode!=saved_radio_mode||order!=saved_acquisition_order) {
+      Bytes request;Tlv(request,0x11,mode);Tlv(request,0x1e,order);
+      Tlv(request,0x17,{0}); // POWER_CYCLE, never a permanent/NV preference.
+      // A timed-out request may already have applied. Always attempt restore.
+      radio_policy_owned=true;
+      nas->Call(0x33,request,8,&cancel);
+      const auto applied=nas->Call(0x34,{},5,&cancel);
+      if(Field(applied,0x11)!=mode||Field(applied,0x1c)!=order)
+        throw std::runtime_error("The modem did not confirm the requested 5G mode");
+    }
+    Diagnostic(std::string("radio-mode=")+(radio_mode==1?"nr-only":"nr-preferred")+
+        " confirmed=1 mode_mask="+std::to_string(desired)+" persistence=power-cycle");
+    {
+      std::lock_guard<std::mutex> lock(state_mutex);
+      status["radio_mode"]=radio_mode;status["radio_mode_confirmed"]=true;SaveLocked();
+    }
+  }
+  void RestoreRadioMode() {
+    if(!nas||!radio_policy_owned)return;
+    try {
+      Bytes request;Tlv(request,0x11,saved_radio_mode);Tlv(request,0x1e,saved_acquisition_order);
+      Tlv(request,0x17,{0});
+      nas->Call(0x33,request,5);
+      const auto restored=nas->Call(0x34,{},3);
+      Diagnostic(std::string("radio-mode restore confirmed=")+
+          (Field(restored,0x11)==saved_radio_mode&&Field(restored,0x1c)==saved_acquisition_order?"1":"0"));
+    }catch(const std::exception &) {
+      Diagnostic("radio-mode restore unavailable; power-cycle policy ends with modem shutdown");
+    }
+    radio_policy_owned=false;
+  }
+  void ReadRadioPreference() {
+    if(Clock::now()<next_preference_query)return;
+    next_preference_query=Clock::now()+std::chrono::seconds(30);
+    Json::Value evidence(Json::objectValue);
+    try {
+      const auto preference=nas->Call(0x34,{},3,&cancel);
+      const auto &mode=Field(preference,0x11),&disabled=Field(preference,0x22),&order=Field(preference,0x1c);
+      if(mode.size()==2) {
+        evidence["allowed_modes"]=U16(mode.data());
+        evidence["nr_allowed"]=(U16(mode.data())&0x40)!=0;
+      }
+      if(disabled.size()==2) {
+        evidence["disabled_modes"]=U16(disabled.data());
+        evidence["nr_disabled"]=(U16(disabled.data())&0x40)!=0;
+      }
+      if(!order.empty()&&order[0]<=16&&1u+order[0]==order.size()) {
+        evidence["acquisition_order"]=Json::Value(Json::arrayValue);
+        for(size_t i=1;i<order.size();++i)evidence["acquisition_order"].append(order[i]);
+        evidence["nr_first"]=order[0]>0&&order[1]==12;
+      }
+    }catch(const QmiError &error){CheckCancelled();evidence["qmi_error"]=error.code;}
+    catch(const std::exception &){CheckCancelled();evidence["unavailable"]=true;}
+    Json::StreamWriterBuilder builder;builder["indentation"]="";
+    const auto encoded=Json::writeString(builder,evidence);
+    if(encoded!=last_radio_preference) {
+      Diagnostic("radio-preference="+encoded);last_radio_preference=encoded;
+    }
+    {
+      std::lock_guard<std::mutex> lock(state_mutex);status["radio_preference"]=evidence;SaveLocked();
+    }
+    if(radio_mode==1&&evidence.isMember("allowed_modes")&&evidence["allowed_modes"].asUInt()!=0x40)
+      throw std::runtime_error("The modem left 5G-only mode. The data connection has been stopped");
+  }
+  bool ReadDataBearer() {
+    Json::Value evidence(Json::objectValue);
+    try {
+      const auto response=wds->Call(0x44,{},3,&cancel);const auto &current=Field(response,1);
+      // Query the WDS client that owns this call, not a newly bound client
+      // or another SIM's default DSD entry. Do not change radio preferences.
+      if(current.size()==9) {
+        evidence["network_type"]=current[0];evidence["rat_mask"]=U32(&current[1]);
+        evidence["service_option_mask"]=U32(&current[5]);
+        evidence["nr"]=current[0]==2&&(U32(&current[1])&(1u<<10))!=0;
+        evidence["lte"]=current[0]==2&&(U32(&current[1])&(1u<<5))!=0;
+      }else evidence["unavailable"]=true;
+    }catch(const QmiError &error){CheckCancelled();evidence["qmi_error"]=error.code;}
+    catch(const std::exception &){CheckCancelled();evidence["unavailable"]=true;}
+    Json::StreamWriterBuilder builder;builder["indentation"]="";
+    const auto encoded=Json::writeString(builder,evidence);
+    if(encoded!=last_data_bearer) {
+      Diagnostic("data-bearer="+encoded);last_data_bearer=encoded;
+    }
+    {
+      std::lock_guard<std::mutex> lock(state_mutex);status["data_bearer"]=evidence;SaveLocked();
+    }
+    return evidence.get("lte",false).asBool()&&!evidence.get("nr",false).asBool();
+  }
   void Signal() {
+    ReadRadioPreference();const bool lte_only=ReadDataBearer();
     const auto current=ReadRegistration();
+    if(radio_mode==1&&(lte_only||(current.registered&&!current.nr_packet&&current.technology!="5G")))
+      throw std::runtime_error("5G-only service was lost. The data connection has been stopped");
     const bool registered=current.registered;const auto &rat=current.technology;int dbm=0;
     try {
       const auto info=nas->Call(0x4f,{},3,&cancel);
@@ -622,7 +734,7 @@ struct Session {
     status["signal_valid"]=valid;status["signal_dbm"]=valid?dbm:0;status["bars"]=bars;
     SaveLocked();
   }
-  void Connect(const std::string &apn,int subscription) {
+  void Connect(const std::string &apn,int subscription,int requested_radio_mode) {
     lease.reset(open(kLease,O_RDWR|O_CREAT|O_CLOEXEC|O_NOFOLLOW,0600));
     if(lease.get()<0||flock(lease.get(),LOCK_SH|LOCK_NB))throw std::runtime_error("Finish the current storage operation first");
     const auto reason=Capability();if(!reason.empty())throw std::runtime_error(reason);
@@ -659,15 +771,21 @@ struct Session {
     wds=std::make_unique<QmiClient>(Find(endpoints,1,nase.node));
     const int selected_subscription=SelectSubscription(subscription);
     WaitForSim(Find(endpoints,11,nase.node),selected_subscription);
+    Phase("configuring","Applying network mode");
+    ApplyRadioMode(requested_radio_mode);
+    ReadRadioPreference();
     Phase("registering","Waiting for mobile network registration");
     bool attached=false;
     const auto registration_deadline=Clock::now()+std::chrono::seconds(120);
     for(int attempt=0;attempt<80&&!attached&&Clock::now()<registration_deadline;++attempt) {
       CheckHelpers();
-      attached=ReadRegistration().registered;
+      const auto registration=ReadRegistration();
+      attached=registration.registered&&(radio_mode!=1||registration.nr_packet||registration.technology=="5G");
       if(!attached)Delay(750);
     }
-    if(!attached)throw std::runtime_error("SIM is not registered for data. Check PIN, coverage and SIM selection");
+    if(!attached)throw std::runtime_error(radio_mode==1?
+        "5G-only service is unavailable. Select 5G preferred or check coverage":
+        "SIM is not registered for data. Check PIN, coverage and SIM selection");
     Phase("connecting","Reading the data access point");
     int profile=-1;
     const std::string effective_apn=AccessPoint(apn,&profile);
@@ -736,6 +854,7 @@ struct Session {
       try{Bytes payload;Tlv(payload,1,Words({handle}));wds->Call(0x21,payload,5);}catch(const std::exception &e){fprintf(stderr,"Stop data: %s\n",e.what());}
       handle=0;
     }
+    RestoreRadioMode();
     RestoreDns();
     if(link_owned){Ip({"link","del",kInterface},false);link_owned=false;}
     wds.reset();wda.reset();dpm.reset();nas.reset();
@@ -755,13 +874,13 @@ struct Session {
   }
 };
 
-void Worker(std::string apn,int subscription) {
+void Worker(std::string apn,int subscription,int radio_mode) {
   std::string failure;
   bool was_connected=false;
   unsigned retry_seconds=5;
   while(!cancel.load()) {
     Session session;
-    try{session.Connect(apn,subscription);}catch(const std::exception &e){
+    try{session.Connect(apn,subscription,radio_mode);}catch(const std::exception &e){
       if(!cancel.load()) {
         failure=e.what();
         std::lock_guard<std::mutex> lock(state_mutex);
@@ -867,17 +986,21 @@ int Main(int argc,char **argv) {
       if(Json::parseFromStream(reader,input,&config,&error)&&config.isObject()&&
           config["apn"].isString()&&config["subscription"].isInt()) {
         std::string apn=config["apn"].asString();int subscription=config["subscription"].asInt();
-        bool valid=apn.size()<=100&&subscription>=0&&subscription<=2;
+        const int radio_mode=config.isMember("radio_mode")&&config["radio_mode"].isInt()?config["radio_mode"].asInt():0;
+        bool valid=apn.size()<=100&&subscription>=0&&subscription<=2&&radio_mode>=0&&radio_mode<=1&&
+            (!config.isMember("radio_mode")||config["radio_mode"].isInt());
         for(unsigned char c:apn)valid&=(c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='.'||c=='-'||c=='_';
         if(valid) {
           if(worker.joinable())worker.join();cancel.store(false);working.store(true);
           {std::lock_guard<std::mutex> lock(state_mutex);ClearConnectionLocked();status["enabled"]=true;status["subscription"]=subscription;status["apn"]=apn;
             status.removeMember("registration");status.removeMember("failure_stage");status.removeMember("failure_step");
+            status.removeMember("radio_preference");status.removeMember("data_bearer");
+            status["radio_mode"]=radio_mode;status["radio_mode_confirmed"]=false;
             status.removeMember("selected_subscription");status.removeMember("subscription_source");status.removeMember("apn_source");
             ClearPin(pending_pin);pending_pin_request.clear();status["pin_request"]="";
             status["sim_state"]="";status["sim_slot"]=0;status["sim_id"]="";status["pin_attempt"]=0;
             status.removeMember("pin_result");status["sims"]=Json::Value(Json::arrayValue);SaveLocked();}
-          worker=std::thread(Worker,apn,subscription);reply="OK";
+          worker=std::thread(Worker,apn,subscription,radio_mode);reply="OK";
         }else reply="Invalid APN or SIM selection";
       }
     }

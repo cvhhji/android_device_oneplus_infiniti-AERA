@@ -802,5 +802,57 @@
   "Cannot determine the default data SIM. Select SIM 1 or SIM 2": {
     "zh_CN": "无法确定默认数据卡，请选择卡一或卡二",
     "zh_TW": "無法確定預設數據卡，請選擇卡一或卡二"
+  },
+  "Network mode": {
+    "zh_CN": "网络模式",
+    "zh_TW": "網路模式"
+  },
+  "5G preferred": {
+    "zh_CN": "5G 优先",
+    "zh_TW": "5G 優先"
+  },
+  "5G only": {
+    "zh_CN": "仅 5G",
+    "zh_TW": "僅 5G"
+  },
+  "Turn off mobile data before changing network mode": {
+    "zh_CN": "请先关闭移动网络，再切换网络模式",
+    "zh_TW": "請先關閉行動網路，再切換網路模式"
+  },
+  "Turn off mobile data to change mode. 5G only may lose service": {
+    "zh_CN": "请先关闭移动网络再切换模式；仅 5G 无覆盖时会断网",
+    "zh_TW": "請先關閉行動網路再切換模式；僅 5G 無覆蓋時會斷網"
+  },
+  "No 4G fallback. Standalone 5G coverage is required": {
+    "zh_CN": "不回落到 4G，需要独立组网 5G 覆盖",
+    "zh_TW": "不回落到 4G，需要獨立組網 5G 覆蓋"
+  },
+  "Prefer 5G and allow 4G fallback. Applies only in recovery": {
+    "zh_CN": "优先使用 5G，必要时回落到 4G；只在 recovery 中生效",
+    "zh_TW": "優先使用 5G，必要時回落到 4G；只在 recovery 中生效"
+  },
+  "The modem cannot apply the requested 5G mode": {
+    "zh_CN": "调制解调器不支持所选的 5G 模式",
+    "zh_TW": "數據機不支援所選的 5G 模式"
+  },
+  "The modem did not confirm the requested 5G mode": {
+    "zh_CN": "调制解调器未确认所选模式，已停止连接",
+    "zh_TW": "數據機未確認所選模式，已停止連線"
+  },
+  "5G-only service was lost. The data connection has been stopped": {
+    "zh_CN": "仅 5G 网络不可用，已停止数据连接",
+    "zh_TW": "僅 5G 網路無法使用，已停止資料連線"
+  },
+  "5G-only service is unavailable. Select 5G preferred or check coverage": {
+    "zh_CN": "仅 5G 网络不可用，请改选“5G 优先”或检查网络覆盖",
+    "zh_TW": "僅 5G 網路無法使用，請改選「5G 優先」或檢查網路覆蓋"
+  },
+  "Applying network mode": {
+    "zh_CN": "正在设置网络模式",
+    "zh_TW": "正在設定網路模式"
+  },
+  "The modem left 5G-only mode. The data connection has been stopped": {
+    "zh_CN": "调制解调器退出了仅 5G 模式，已停止数据连接",
+    "zh_TW": "數據機離開了僅 5G 模式，已停止資料連線"
   }
 }
