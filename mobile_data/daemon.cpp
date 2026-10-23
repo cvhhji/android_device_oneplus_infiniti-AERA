@@ -604,6 +604,58 @@ struct Session {
     if(apn.empty())throw std::runtime_error("Enter the access point name (APN) supplied by your carrier");
     return apn;
   }
+  bool WaitForRadioMode(const Bytes &mode,const Bytes &order,bool restoring) {
+    const auto started=Clock::now(),deadline=started+std::chrono::seconds(12);
+    const char *action=restoring?"restore":"apply";
+    bool confirmed=false;
+    int observed=-1;
+    unsigned attempts=0;
+    std::string last_observation;
+    while(Clock::now()<deadline) {
+      if(!restoring)CheckCancelled();
+      const auto left=std::chrono::duration_cast<std::chrono::milliseconds>(deadline-Clock::now()).count();
+      if(left<1000)break;
+      ++attempts;
+      try {
+        const auto reply=nas->Call(0x34,{},static_cast<int>(std::min<int64_t>(3,left/1000)),
+            restoring?nullptr:&cancel);
+        const auto &actual_mode=Field(reply,0x11),&actual_order=Field(reply,0x1c);
+        observed=actual_mode.size()==2?U16(actual_mode.data()):-1;
+        const bool order_matches=actual_order==order;
+        confirmed=actual_mode==mode&&order_matches;
+        const std::string observation="readback_mask="+std::to_string(observed)+
+            " order_match="+std::to_string(order_matches);
+        if(observation!=last_observation) {
+          Diagnostic(std::string("radio-mode ")+action+" requested_mask="+
+              std::to_string(U16(mode.data()))+" "+observation+
+              " attempt="+std::to_string(attempts));
+          last_observation=observation;
+        }
+        if(confirmed)break;
+      }catch(const QmiError &error) {
+        if(!restoring)CheckCancelled();
+        Diagnostic(std::string("radio-mode ")+action+" readback qmi_error="+std::to_string(error.code));
+      }catch(const std::exception &) {
+        if(!restoring)CheckCancelled();
+        Diagnostic(std::string("radio-mode ")+action+" readback unavailable");
+      }
+      // NAS acknowledges the request before Get System Selection Preference
+      // necessarily reflects it. Poll only; never replay an accepted write.
+      if(restoring)std::this_thread::sleep_for(std::chrono::milliseconds(250));
+      else Delay(250);
+    }
+    Json::Value evidence(Json::objectValue);
+    evidence["requested_mask"]=U16(mode.data());evidence["observed_mask"]=observed;
+    evidence["attempts"]=attempts;evidence["confirmed"]=confirmed;
+    evidence["order_required"]=true;
+    evidence["elapsed_ms"]=static_cast<Json::Int64>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now()-started).count());
+    {
+      std::lock_guard<std::mutex> lock(state_mutex);
+      status[restoring?"radio_mode_restore":"radio_mode_confirmation"]=evidence;SaveLocked();
+    }
+    return confirmed;
+  }
   void ApplyRadioMode(int requested) {
     radio_mode=requested;
     const auto preference=nas->Call(0x34,{},5,&cancel);
@@ -627,8 +679,7 @@ struct Session {
       // A timed-out request may already have applied. Always attempt restore.
       radio_policy_owned=true;
       nas->Call(0x33,request,8,&cancel);
-      const auto applied=nas->Call(0x34,{},5,&cancel);
-      if(Field(applied,0x11)!=mode||Field(applied,0x1c)!=order)
+      if(!WaitForRadioMode(mode,order,false))
         throw std::runtime_error("The modem did not confirm the requested 5G mode");
     }
     Diagnostic(std::string("radio-mode=")+(radio_mode==1?"nr-only":"nr-preferred")+
@@ -644,9 +695,8 @@ struct Session {
       Bytes request;Tlv(request,0x11,saved_radio_mode);Tlv(request,0x1e,saved_acquisition_order);
       Tlv(request,0x17,{0});
       nas->Call(0x33,request,5);
-      const auto restored=nas->Call(0x34,{},3);
       Diagnostic(std::string("radio-mode restore confirmed=")+
-          (Field(restored,0x11)==saved_radio_mode&&Field(restored,0x1c)==saved_acquisition_order?"1":"0"));
+          (WaitForRadioMode(saved_radio_mode,saved_acquisition_order,true)?"1":"0"));
     }catch(const std::exception &) {
       Diagnostic("radio-mode restore unavailable; power-cycle policy ends with modem shutdown");
     }
@@ -995,6 +1045,7 @@ int Main(int argc,char **argv) {
           {std::lock_guard<std::mutex> lock(state_mutex);ClearConnectionLocked();status["enabled"]=true;status["subscription"]=subscription;status["apn"]=apn;
             status.removeMember("registration");status.removeMember("failure_stage");status.removeMember("failure_step");
             status.removeMember("radio_preference");status.removeMember("data_bearer");
+            status.removeMember("radio_mode_confirmation");status.removeMember("radio_mode_restore");
             status["radio_mode"]=radio_mode;status["radio_mode_confirmed"]=false;
             status.removeMember("selected_subscription");status.removeMember("subscription_source");status.removeMember("apn_source");
             ClearPin(pending_pin);pending_pin_request.clear();status["pin_request"]="";
