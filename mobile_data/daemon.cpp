@@ -2,6 +2,7 @@
 #include "aera_mobile/client.hpp"
 #include "qmi.hpp"
 #include "sim.hpp"
+#include "registration.hpp"
 #include "modem_features.hpp"
 #include <openssl/sha.h>
 #include <arpa/inet.h>
@@ -33,6 +34,7 @@ constexpr const char *kDirectory="/tmp/aera-cellular";
 constexpr const char *kInterface="rmnet_aera";
 std::atomic<bool> cancel{false}, exiting{false}, working{false};
 std::mutex state_mutex, completion_mutex;
+std::mutex diagnostic_mutex;
 std::condition_variable completion;
 Json::Value status(Json::objectValue);
 std::string helper_directory="/system/bin";
@@ -76,6 +78,27 @@ bool Write(const std::string &path,const std::string &value,int flags=O_WRONLY,m
   }
   return true;
 }
+void Diagnostic(const std::string &message) {
+  // init directs the provider's stderr to /dev/null. Keep a bounded private
+  // RAM log; callers pass stages and numeric protocol state, never SIM IDs,
+  // APNs, PINs, credentials, or arbitrary raw QMI replies.
+  std::lock_guard<std::mutex> lock(diagnostic_mutex);
+  Fd fd(open((std::string(kDirectory)+"/provider.log").c_str(),
+      O_WRONLY|O_CREAT|O_APPEND|O_CLOEXEC|O_NOFOLLOW,0600));
+  struct stat entry{};
+  if(fd.get()<0||fstat(fd.get(),&entry)||!S_ISREG(entry.st_mode)||
+      entry.st_uid!=geteuid()||entry.st_nlink!=1||fchmod(fd.get(),0600))return;
+  if(entry.st_size>=256*1024&&ftruncate(fd.get(),0))return;
+  const auto elapsed=std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count();
+  const std::string line=std::to_string(elapsed)+" "+message+"\n";
+  size_t offset=0;
+  while(offset<line.size()) {
+    ssize_t n=write(fd.get(),line.data()+offset,line.size()-offset);
+    if(n<0&&errno==EINTR)continue;
+    if(n<=0)break;
+    offset+=n;
+  }
+}
 void SaveLocked() {
   status["boot_id"]=Read("/proc/sys/kernel/random/boot_id");
   status["pid"]=getpid();status["version"]=1;
@@ -85,7 +108,11 @@ void SaveLocked() {
 }
 void Phase(const std::string &state,const std::string &message) {
   std::lock_guard<std::mutex> lock(state_mutex);
+  if(state!="stopping"&&state!="off"&&state!="error") {
+    status["last_stage"]=state;status["last_step"]=message;
+  }
   status["state"]=state;status["message"]=message;SaveLocked();
+  Diagnostic("phase="+state+" message="+message);
   fprintf(stderr,"mobile: %s: %s\n",state.c_str(),message.c_str());
 }
 void ClearConnectionLocked() {
@@ -236,6 +263,8 @@ struct Session {
   std::atomic<bool> network_stop{false};
   std::mutex network_mutex;
   std::string network_error;
+  std::string last_registration;
+  unsigned registration_samples=0;
   uint32_t handle=0;
   std::map<unsigned,std::string> SimIdentities(QmiClient &uim) {
     std::map<unsigned,std::string> out;
@@ -433,29 +462,147 @@ struct Session {
       }
     });
   }
-  void Signal() {
-    bool registered=false;std::string rat;int dbm=0;
-    Values serving;
-    try { serving=nas->Call(0x24,{},3,&cancel); }
-    catch(const QmiError &error) {
-      if(error.code!=74)throw;
-      CheckCancelled();
-    }
+  Registration ReadRegistration() {
+    Values serving,info;
+    int legacy_error=0,system_error=0;
+    try{serving=nas->Call(0x24,{},3,&cancel);}
+    catch(const QmiError &error){CheckCancelled();legacy_error=error.code;}
+    catch(const std::exception &){CheckCancelled();legacy_error=-1;}
+    try{info=nas->Call(0x4d,{},3,&cancel);}
+    catch(const QmiError &error){CheckCancelled();system_error=error.code;}
+    catch(const std::exception &){CheckCancelled();system_error=-1;}
+    const auto current=ParseRegistration(serving,info);
+    Json::Value evidence(Json::objectValue);
+    evidence["legacy_error"]=legacy_error;evidence["system_info_error"]=system_error;
+    evidence["legacy_attached"]=current.legacy_attached;
+    evidence["lte_packet"]=current.lte_packet;evidence["nr_packet"]=current.nr_packet;
+    evidence["registered"]=current.registered;evidence["technology"]=current.technology;
     const auto &system=Field(serving,1);
-    if(system.size()>=5&&system[4]<=system.size()-5) {
-      registered=system[0]==1&&system[2]==1;
-      for(size_t i=5;i<5u+system[4];++i) {
-        switch(system[i]) {
-          case 4:rat="2G";break;case 5:case 9:if(rat!="4G"&&rat!="5G")rat="3G";break;
-          case 8:if(rat!="5G")rat="4G";break;case 12:rat="5G";break;default:break;
-        }
+    if(system.size()>=3) {
+      evidence["legacy_registration"]=system[0];evidence["legacy_ps_attach"]=system[2];
+    }
+    for(const auto &radio:std::vector<std::pair<std::string,std::pair<uint8_t,uint8_t>>>{
+        {"lte",{0x14,0x19}},{"nr",{0x4a,0x4b}}}) {
+      const auto &service=Field(info,radio.second.first),&network=Field(info,radio.second.second);
+      auto &row=evidence[radio.first];row=Json::Value(Json::objectValue);
+      if(service.size()>=3) {
+        row["service"]=service[0];row["true_service"]=service[1];row["preferred_data_path"]=service[2];
+      }
+      if(network.size()>=8) {
+        row["domain_valid"]=network[0];row["domain"]=network[1];
+        row["forbidden_valid"]=network[6];row["forbidden"]=network[7];
+      }
+      if(network.size()>=19&&network[16]) {
+        row["reject_domain"]=network[17];row["reject_cause"]=network[18];
       }
     }
-    // NR service must actually be available; a stored NR measurement alone
-    // is not evidence that the current connection is using 5G.
-    try {const auto info=nas->Call(0x4d,{},3,&cancel);const auto &nr=Field(info,0x4a);
-      if(nr.size()>=3&&nr[0]==2&&nr[2])rat="5G";
-    }catch(const std::exception &){CheckCancelled();}
+    Json::StreamWriterBuilder builder;builder["indentation"]="";
+    const auto encoded=Json::writeString(builder,evidence);
+    if(encoded!=last_registration||++registration_samples%10==0) {
+      Diagnostic("registration="+encoded);last_registration=encoded;
+    }
+    {
+      std::lock_guard<std::mutex> lock(state_mutex);
+      status["registration"]=evidence;status["registered"]=current.registered;
+      status["technology"]=current.registered?current.technology:"";
+      const auto &operator_info=Field(serving,0x12);
+      if(operator_info.size()>=5&&operator_info[4]<=operator_info.size()-5)
+        status["operator"]=std::string(operator_info.begin()+5,operator_info.begin()+5+operator_info[4]);
+      SaveLocked();
+    }
+    return current;
+  }
+  int SelectSubscription(int requested) {
+    int selected=requested;
+    std::string source=requested?"explicit":"";
+    if(!selected) {
+      // A new WDS client can report DEFAULT (0), which is not proof of SIM 1.
+      // Read the modem's default data subscription without changing its
+      // persistent dual-standby or 4G/5G preferences.
+      for(int attempt=0;attempt<8&&!selected;++attempt) {
+        try {
+          const auto preference=nas->Call(0x5c,{},3,&cancel);
+          const auto &value=Field(preference,0x13);
+          if(value.size()==1&&value[0]<=1){selected=value[0]+1;source="nas-default-data";}
+        }catch(const QmiError &error) {
+          CheckCancelled();Diagnostic("default-data query qmi_error="+std::to_string(error.code));
+          if(error.code!=74)break;
+        }catch(const std::exception &) {
+          CheckCancelled();Diagnostic("default-data query unavailable");break;
+        }
+        if(!selected)Delay(300);
+      }
+      if(!selected) {
+        const auto bound=wds->Call(0xb0,{},5,&cancel);const auto &value=Field(bound,0x10);
+        if(value.size()==4&&(U32(value.data())==1||U32(value.data())==2)) {
+          selected=U32(value.data());source="wds-bound";
+        }
+      }
+      if(!selected)throw std::runtime_error("Cannot determine the default data SIM. Select SIM 1 or SIM 2");
+    }
+    Bytes binding;Tlv(binding,1,Words({static_cast<uint32_t>(selected)}));
+    wds->Call(0xaf,binding,6,&cancel);
+    const auto bound=wds->Call(0xb0,{},6,&cancel);const auto &actual=Field(bound,0x10);
+    if(actual.size()!=4||U32(actual.data())!=static_cast<uint32_t>(selected))
+      throw std::runtime_error("The modem did not select the requested data SIM");
+    // Both registration and the data call must use the same concrete
+    // subscription, including when the UI requested Default.
+    Bytes nas_binding;Tlv(nas_binding,1,{static_cast<uint8_t>(selected-1)});
+    nas->Call(0x45,nas_binding,6,&cancel);
+    Diagnostic("subscription requested="+std::to_string(requested)+" selected="+
+        std::to_string(selected)+" source="+source+" nas-bound=1 wds-bound=1");
+    {
+      std::lock_guard<std::mutex> lock(state_mutex);
+      status["selected_subscription"]=selected;status["subscription_source"]=source;SaveLocked();
+    }
+    return selected;
+  }
+  std::string AccessPoint(const std::string &configured,int *profile) {
+    *profile=-1;
+    if(!configured.empty()) {
+      Diagnostic("apn source=manual");
+      std::lock_guard<std::mutex> lock(state_mutex);status["apn_source"]="manual";SaveLocked();
+      return configured;
+    }
+    std::string apn,source;
+    // The selected subscription's default 3GPP data profile is usable on NR
+    // too. The LTE attach reply alone can be empty on a non-LTE connection.
+    try {
+      Bytes query;Tlv(query,1,{0,0});
+      const auto selected=wds->Call(0x49,query,5,&cancel);const auto &index=Field(selected,1);
+      if(index.size()==1&&index[0]) {
+        Bytes request;Tlv(request,1,{0,index[0]});
+        const auto settings=wds->Call(0x2b,request,5,&cancel);
+        const auto &value=Field(settings,0x14),&disabled=Field(settings,0x2f),&type=Field(settings,0xdd);
+        const std::string candidate(value.begin(),value.end());
+        // Do not choose a profile explicitly disabled or marked exclusively
+        // for IMS/MMS/emergency use. Never change or create modem profiles.
+        if(ValidApn(candidate)&&(disabled.empty()||(disabled.size()==1&&!disabled[0]))&&
+            (type.empty()||(type.size()==8&&(U32(type.data())&1)))) {
+          apn=candidate;source="default-profile";*profile=index[0];
+        }
+      }
+    }catch(const QmiError &error){CheckCancelled();Diagnostic("default-profile query qmi_error="+std::to_string(error.code));}
+    catch(const std::exception &){CheckCancelled();Diagnostic("default-profile query unavailable");}
+    if(apn.empty()) {
+      try {
+        const auto attach=wds->Call(0x85,{},5,&cancel);const auto &value=Field(attach,0x10);
+        const std::string candidate(value.begin(),value.end());
+        if(ValidApn(candidate)){apn=candidate;source="lte-attach";}
+      }catch(const QmiError &error){CheckCancelled();Diagnostic("lte-attach query qmi_error="+std::to_string(error.code));}
+      catch(const std::exception &){CheckCancelled();Diagnostic("lte-attach query unavailable");}
+    }
+    if(source.empty())source="unavailable";
+    Diagnostic("apn source="+source);
+    {
+      std::lock_guard<std::mutex> lock(state_mutex);status["apn_source"]=source;SaveLocked();
+    }
+    if(apn.empty())throw std::runtime_error("Enter the access point name (APN) supplied by your carrier");
+    return apn;
+  }
+  void Signal() {
+    const auto current=ReadRegistration();
+    const bool registered=current.registered;const auto &rat=current.technology;int dbm=0;
     try {
       const auto info=nas->Call(0x4f,{},3,&cancel);
       if(rat=="5G"&&Field(info,0x17).size()>=2)dbm=static_cast<int16_t>(U16(Field(info,0x17).data()));
@@ -473,9 +620,6 @@ struct Session {
     std::lock_guard<std::mutex> lock(state_mutex);
     status["registered"]=registered;status["technology"]=registered?rat:"";
     status["signal_valid"]=valid;status["signal_dbm"]=valid?dbm:0;status["bars"]=bars;
-    const auto &operator_info=Field(serving,0x12);
-    if(operator_info.size()>=5&&operator_info[4]<=operator_info.size()-5)
-      status["operator"]=std::string(operator_info.begin()+5,operator_info.begin()+5+operator_info[4]);
     SaveLocked();
   }
   void Connect(const std::string &apn,int subscription) {
@@ -513,38 +657,21 @@ struct Session {
     QmiClient dms(Find(endpoints,2,nase.node));Bytes online;Tlv(online,1,{0});dms.Call(0x2e,online,12,&cancel);
     nas=std::make_unique<QmiClient>(nase);
     wds=std::make_unique<QmiClient>(Find(endpoints,1,nase.node));
-    if(subscription) {
-      Bytes binding;Tlv(binding,1,Words({static_cast<uint32_t>(subscription)}));
-      wds->Call(0xaf,binding,6,&cancel);
-      const auto bound=wds->Call(0xb0,{},6,&cancel);
-      const auto &selected=Field(bound,0x10);
-      if(selected.size()!=4||U32(selected.data())!=static_cast<uint32_t>(subscription))
-        throw std::runtime_error("The modem did not select the requested data SIM");
-      // NAS binding is client-local too, and must match the selected WDS SIM.
-      Bytes nas_binding;Tlv(nas_binding,1,{static_cast<uint8_t>(subscription-1)});
-      nas->Call(0x45,nas_binding,6,&cancel);
-    }
-    int selected_subscription=subscription;
-    if(!selected_subscription) {
-      const auto bound=wds->Call(0xb0,{},6,&cancel);const auto &value=Field(bound,0x10);
-      if(value.size()==4)selected_subscription=static_cast<int>(U32(value.data()));
-    }
+    const int selected_subscription=SelectSubscription(subscription);
     WaitForSim(Find(endpoints,11,nase.node),selected_subscription);
     Phase("registering","Waiting for mobile network registration");
     bool attached=false;
-    for(int attempt=0;attempt<60&&!attached;++attempt) {
+    const auto registration_deadline=Clock::now()+std::chrono::seconds(120);
+    for(int attempt=0;attempt<80&&!attached&&Clock::now()<registration_deadline;++attempt) {
       CheckHelpers();
-      try {
-        auto reply=nas->Call(0x24,{},4,&cancel);const auto &serving=Field(reply,1);
-        attached=serving.size()>=3&&serving[0]==1&&serving[2]==1;
-      }catch(const QmiError &error) {
-        // NAS may be published before subscription information is available.
-        if(error.code!=74)throw;
-        CheckCancelled();
-      }
+      attached=ReadRegistration().registered;
       if(!attached)Delay(750);
     }
     if(!attached)throw std::runtime_error("SIM is not registered for data. Check PIN, coverage and SIM selection");
+    Phase("connecting","Reading the data access point");
+    int profile=-1;
+    const std::string effective_apn=AccessPoint(apn,&profile);
+    {std::lock_guard<std::mutex> lock(state_mutex);status["effective_apn"]=effective_apn;SaveLocked();}
     const auto endpoint=Ipa({3,0,0,0,0,0}),pipes=Ipa({0x10,0,0,0,0,0});
     dpm=std::make_unique<QmiClient>(Find(endpoints,47,nase.node));
     Bytes hardware{1};Append(hardware,Words({4,endpoint[1],pipes[1],pipes[2]}));Bytes request;
@@ -560,22 +687,9 @@ struct Session {
     }
     Bytes binding;Tlv(binding,0x10,Words({4,endpoint[1]}));Tlv(binding,0x11,{1});wds->Call(0xa2,binding,12,&cancel);
     Bytes family;Tlv(family,1,{4});wds->Call(0x4d,family,12,&cancel);
-    std::string effective_apn=apn;
-    if(effective_apn.empty()) {
-      try {
-        const auto attach=wds->Call(0x85,{},5,&cancel);
-        const auto &value=Field(attach,0x10);
-        if(!value.empty()&&value.size()<=100) {
-          std::string candidate(value.begin(),value.end());
-          if(candidate.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_")==std::string::npos)
-            effective_apn=candidate;
-        }
-      }catch(const std::exception &){CheckCancelled();}
-      if(effective_apn.empty())throw std::runtime_error("Enter the access point name (APN) supplied by your carrier");
-    }
-    {std::lock_guard<std::mutex> lock(state_mutex);status["effective_apn"]=effective_apn;}
     Phase("connecting","Establishing the data connection");
     Bytes start;Tlv(start,0x14,Bytes(effective_apn.begin(),effective_apn.end()));Tlv(start,0x19,{4});
+    if(profile>=0)Tlv(start,0x31,{static_cast<uint8_t>(profile)});
     auto reply=wds->Call(0x20,start,45,&cancel);const auto &value=Field(reply,1);
     if(value.size()!=4)throw std::runtime_error("The modem returned no data session handle");handle=U32(value.data());
     Bytes settings_request;Tlv(settings_request,0x10,Words({0x2310}));const auto settings=wds->Call(0x2d,settings_request,12,&cancel);
@@ -647,7 +761,14 @@ void Worker(std::string apn,int subscription) {
   unsigned retry_seconds=5;
   while(!cancel.load()) {
     Session session;
-    try{session.Connect(apn,subscription);}catch(const std::exception &e){if(!cancel.load())failure=e.what();}
+    try{session.Connect(apn,subscription);}catch(const std::exception &e){
+      if(!cancel.load()) {
+        failure=e.what();
+        std::lock_guard<std::mutex> lock(state_mutex);
+        status["failure_stage"]=status.get("last_stage","");
+        status["failure_step"]=status.get("last_step","");SaveLocked();
+      }
+    }
     was_connected|=session.established;
     if(session.established)retry_seconds=5;
     Phase("stopping","Disconnecting mobile data");
@@ -751,6 +872,8 @@ int Main(int argc,char **argv) {
         if(valid) {
           if(worker.joinable())worker.join();cancel.store(false);working.store(true);
           {std::lock_guard<std::mutex> lock(state_mutex);ClearConnectionLocked();status["enabled"]=true;status["subscription"]=subscription;status["apn"]=apn;
+            status.removeMember("registration");status.removeMember("failure_stage");status.removeMember("failure_step");
+            status.removeMember("selected_subscription");status.removeMember("subscription_source");status.removeMember("apn_source");
             ClearPin(pending_pin);pending_pin_request.clear();status["pin_request"]="";
             status["sim_state"]="";status["sim_slot"]=0;status["sim_id"]="";status["pin_attempt"]=0;
             status.removeMember("pin_result");status["sims"]=Json::Value(Json::arrayValue);SaveLocked();}

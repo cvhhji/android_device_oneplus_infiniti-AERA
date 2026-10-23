@@ -794,5 +794,13 @@
   "- your turn": {
     "zh_CN": "- 轮到你了",
     "zh_TW": "- 輪到你了"
+  },
+  "Reading the data access point": {
+    "zh_CN": "正在读取数据接入点",
+    "zh_TW": "正在讀取資料存取點"
+  },
+  "Cannot determine the default data SIM. Select SIM 1 or SIM 2": {
+    "zh_CN": "无法确定默认数据卡，请选择卡一或卡二",
+    "zh_TW": "無法確定預設數據卡，請選擇卡一或卡二"
   }
 }
