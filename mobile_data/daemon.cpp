@@ -121,6 +121,7 @@ void ClearConnectionLocked() {
   status["bars"]=-1;status["signal_dbm"]=0;
   for(const char *key:{"address","gateway","interface","operator","technology","dns1","dns2","effective_apn"})
     status[key]="";
+  status.removeMember("operator_info");
   status.removeMember("mtu");
 }
 void CheckCancelled() { if(cancel.load())throw std::runtime_error("Connection cancelled"); }
@@ -267,6 +268,9 @@ struct Session {
   std::string last_registration;
   std::string last_radio_preference,last_data_bearer;
   Clock::time_point next_preference_query{};
+  std::string operator_cache_key,operator_cache_name,operator_cache_source,last_operator_info;
+  Clock::time_point operator_cache_expiry{},next_operator_query{};
+  int operator_subscription=0;
   int radio_mode=0;
   Bytes saved_radio_mode,saved_acquisition_order;
   bool radio_policy_owned=false;
@@ -468,6 +472,68 @@ struct Session {
       }
     });
   }
+  std::string ReadOperator(const Values &serving,const Values &info,bool registered,Json::Value *evidence) {
+    const auto network=CurrentOperatorNetwork(info),legacy=ServingOperatorNetwork(serving);
+    const auto key=std::to_string(operator_subscription)+":"+network.key();
+    const auto now=Clock::now();
+    if(key!=operator_cache_key) {
+      operator_cache_key=key;operator_cache_name.clear();operator_cache_source.clear();
+      operator_cache_expiry={};next_operator_query={};
+    }
+    *evidence=Json::Value(Json::objectValue);
+    (*evidence)["subscription"]=operator_subscription;
+    (*evidence)["network_id"]=network.key();
+    (*evidence)["radio_interface"]=network.radio;
+    const bool matching=network.valid()&&network.key()==legacy.key();
+    const auto serving_name=DecodeServingOperator(Field(serving,0x12));
+    (*evidence)["serving_name_available"]=!serving_name.empty();
+    (*evidence)["serving_plmn_matches_current"]=matching;
+    if(!registered){(*evidence)["source"]="unregistered";return {};}
+    std::string name,source;
+    if(matching&&!serving_name.empty()) {
+      name=serving_name;source="serving-system";
+    }else if(!operator_cache_name.empty()&&now<operator_cache_expiry) {
+      name=operator_cache_name;source=operator_cache_source;
+      (*evidence)["cached"]=true;
+    }else if(now>=next_operator_query) {
+      // The secondary subscription can retain the primary's legacy PLMN with
+      // an empty name. Query this NAS client using its current system-info ID.
+      next_operator_query=now+std::chrono::seconds(30);
+      if(network.valid()) {
+        Bytes identity;Put16(identity,static_cast<uint16_t>(std::stoul(network.mcc)));
+        Put16(identity,static_cast<uint16_t>(std::stoul(network.mnc)));
+        Bytes request;Tlv(request,1,identity);
+        Tlv(request,0x11,{static_cast<uint8_t>(network.mnc.size()==3)});
+        Tlv(request,0x12,{1});
+        try {
+          const auto reply=nas->Call(0x44,request,2,&cancel);
+          const auto &field=Field(reply,0x10);
+          (*evidence)["plmn_reply_present"]=!field.empty();
+          if(!field.empty())(*evidence)["plmn_provider_encoding"]=field[0];
+          name=DecodePlmnOperator(field);
+          if(!name.empty())source="plmn-name";
+        }catch(const QmiError &error){CheckCancelled();(*evidence)["plmn_name_error"]=error.code;}
+        catch(const std::exception &){CheckCancelled();(*evidence)["plmn_name_error"]=-1;}
+      }
+      if(name.empty()) {
+        try {
+          name=DecodeBoundOperator(nas->Call(0x39,{},2,&cancel));
+          if(!name.empty())source="bound-operator-name";
+        }catch(const QmiError &error){CheckCancelled();(*evidence)["operator_name_error"]=error.code;}
+        catch(const std::exception &){CheckCancelled();(*evidence)["operator_name_error"]=-1;}
+      }
+    }
+    if(!name.empty()) {
+      if(!(*evidence).get("cached",false).asBool()) {
+        operator_cache_name=name;operator_cache_source=source;
+        operator_cache_expiry=Clock::now()+std::chrono::minutes(5);
+      }
+    }else {
+      name=network.key();source=network.valid()?"current-network-id":"unavailable";
+    }
+    (*evidence)["source"]=source;
+    return name;
+  }
   Registration ReadRegistration() {
     Values serving,info;
     int legacy_error=0,system_error=0;
@@ -507,11 +573,17 @@ struct Session {
     if(encoded!=last_registration||++registration_samples%10==0) {
       Diagnostic("registration="+encoded);last_registration=encoded;
     }
+    Json::Value operator_info;
+    const auto operator_name=ReadOperator(serving,info,current.registered,&operator_info);
+    const auto operator_encoded=Json::writeString(builder,operator_info);
+    if(operator_encoded!=last_operator_info) {
+      Diagnostic("operator-info="+operator_encoded);last_operator_info=operator_encoded;
+    }
     {
       std::lock_guard<std::mutex> lock(state_mutex);
       status["registration"]=evidence;status["registered"]=current.registered;
       status["technology"]=current.registered?current.technology:"";
-      status["operator"]=DecodeServingOperator(Field(serving,0x12));
+      status["operator"]=operator_name;status["operator_info"]=operator_info;
       SaveLocked();
     }
     return current;
@@ -553,6 +625,9 @@ struct Session {
     // subscription, including when the UI requested Default.
     Bytes nas_binding;Tlv(nas_binding,1,{static_cast<uint8_t>(selected-1)});
     nas->Call(0x45,nas_binding,6,&cancel);
+    operator_subscription=selected;
+    operator_cache_key.clear();operator_cache_name.clear();operator_cache_source.clear();
+    operator_cache_expiry={};next_operator_query={};last_operator_info.clear();
     Diagnostic("subscription requested="+std::to_string(requested)+" selected="+
         std::to_string(selected)+" source="+source+" nas-bound=1 wds-bound=1");
     {
